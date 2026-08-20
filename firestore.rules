@@ -1,0 +1,101 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function activeUser() {
+      return signedIn() && currentUser().data.active == true;
+    }
+
+    function hasRole(role) {
+      return activeUser() && currentUser().data.role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('ADMIN');
+    }
+
+    function isTreasury() {
+      return hasRole('TESORERIA');
+    }
+
+    function isReadOnlyStaff() {
+      return hasRole('CONSULTA');
+    }
+
+    function isStaff() {
+      return isAdmin() || isTreasury() || isReadOnlyStaff();
+    }
+
+    function isSocio() {
+      return hasRole('SOCIO');
+    }
+
+    function currentSocioId() {
+      return currentUser().data.socioId;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /socios/{socioId} {
+      allow read: if isStaff() || (isSocio() && currentSocioId() == socioId);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /obligaciones/{obligacionId} {
+      allow read: if isStaff() || (isSocio() && resource.data.socioId == currentSocioId());
+      allow create, update, delete: if isAdmin() || isTreasury();
+    }
+
+    match /pagos/{pagoId} {
+      allow read: if isStaff() || (isSocio() && resource.data.socioId == currentSocioId());
+      allow create, update, delete: if isAdmin() || isTreasury();
+    }
+
+    match /ingresos/{ingresoId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin() || isTreasury();
+    }
+
+    match /egresos/{egresoId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin() || isTreasury();
+    }
+
+    match /actividades/{actividadId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin() || isTreasury();
+    }
+
+    match /movimientos_actividad/{movimientoId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin() || isTreasury();
+    }
+
+    match /configuracion/{configId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /audit_log/{logId} {
+      allow read: if isStaff();
+      allow create: if (isAdmin() || isTreasury())
+        && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

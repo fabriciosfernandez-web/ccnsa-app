@@ -5,6 +5,7 @@ import { AppShell } from './layouts/AppShell'
 import { AdminDashboard } from './pages/AdminDashboard'
 import { ForbiddenPage } from './pages/ForbiddenPage'
 import { LoginPage } from './pages/LoginPage'
+import { NotificationsPage } from './pages/NotificationsPage'
 import { SocioDashboard } from './pages/SocioDashboard'
 
 function HomeRedirect() {
@@ -28,6 +29,7 @@ export default function App() {
           <Route element={<ProtectedRoute allowedRoles={['SOCIO']} />}>
             <Route element={<AppShell />}>
               <Route path="/socio" element={<SocioDashboard />} />
+              <Route path="/socio/notificaciones" element={<NotificationsPage />} />
             </Route>
           </Route>
 

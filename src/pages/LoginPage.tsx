@@ -28,29 +28,35 @@ export function LoginPage() {
   }
 
   return (
-    <div className="login-screen">
-      <section className="login-card">
-        <div>
-          <p className="eyebrow">Centro Cultural</p>
-          <h1>CCNSA App</h1>
-          <p className="muted">Consulta de cuotas y gestión institucional.</p>
+    <div className="login-screen legacy-login-screen">
+      <section className="legacy-login-card">
+        <div className="legacy-accent" />
+
+        <div className="legacy-brand-block">
+          <div className="legacy-logo" aria-hidden="true">CC</div>
+          <div>
+            <p className="legacy-kicker">Centro Cultural</p>
+            <h1>CCNSA</h1>
+            <p className="muted">Consulta de cuotas y gestión institucional</p>
+          </div>
         </div>
 
         {!firebaseConfigured && (
           <div className="notice warning">
-            Firebase aún no está configurado. Copiá <code>.env.example</code> a <code>.env.local</code> y completá la configuración del proyecto de desarrollo.
+            Firebase aún no está configurado. Esta pantalla ya puede seguir diseñándose y probándose visualmente.
           </div>
         )}
 
         {error && <div className="notice error">{error}</div>}
         {formError && <div className="notice error">{formError}</div>}
 
-        <form onSubmit={handleSubmit} className="form-stack">
+        <form onSubmit={handleSubmit} className="form-stack legacy-form">
           <label>
             Correo electrónico
             <input
               type="email"
               autoComplete="email"
+              placeholder="tu@correo.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
@@ -63,6 +69,7 @@ export function LoginPage() {
             <input
               type="password"
               autoComplete="current-password"
+              placeholder="Tu contraseña"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
@@ -70,10 +77,12 @@ export function LoginPage() {
             />
           </label>
 
-          <button className="button primary" type="submit" disabled={!firebaseConfigured || submitting}>
+          <button className="button primary legacy-primary-button" type="submit" disabled={!firebaseConfigured || submitting}>
             {submitting ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
+
+        <p className="legacy-login-footnote">Centro Cultural Nuestra Señora de la Asunción</p>
       </section>
     </div>
   )

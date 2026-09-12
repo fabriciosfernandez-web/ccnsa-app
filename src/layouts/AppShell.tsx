@@ -5,11 +5,14 @@ export function AppShell() {
   const { profile, logout } = useAuth()
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div>
-          <p className="eyebrow">CCNSA</p>
-          <h1>Gestión</h1>
+    <div className="app-shell legacy-app-shell">
+      <aside className="sidebar legacy-sidebar">
+        <div className="legacy-sidebar-brand">
+          <div className="legacy-logo small" aria-hidden="true">CC</div>
+          <div>
+            <p className="legacy-kicker">Centro Cultural</p>
+            <h1>CCNSA</h1>
+          </div>
         </div>
 
         <nav className="nav-list" aria-label="Navegación principal">
@@ -30,6 +33,7 @@ export function AppShell() {
         </nav>
 
         <div className="sidebar-user">
+          <span className="legacy-user-label">Sesión iniciada</span>
           <strong>{profile?.displayName}</strong>
           <span>{profile?.role}</span>
           <button className="button secondary" type="button" onClick={() => void logout()}>
@@ -38,7 +42,8 @@ export function AppShell() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className="main-content legacy-main-content">
+        <div className="legacy-accent page-accent" />
         <Outlet />
       </main>
     </div>

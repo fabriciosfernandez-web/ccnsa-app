@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 
 export function AdminDashboard() {
@@ -37,6 +38,7 @@ export function AdminDashboard() {
           <p className="legacy-kicker">Módulo</p>
           <h3>Socios y cuotas</h3>
           <p>Alta, estado, categoría, obligaciones periódicas, saldos y pagos aplicados.</p>
+          <Link className="button primary inline-button" to="/admin/socios">Abrir módulo</Link>
         </article>
         <article className="panel legacy-panel feature-card">
           <p className="legacy-kicker">Módulo</p>

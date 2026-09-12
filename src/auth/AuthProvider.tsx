@@ -7,8 +7,10 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   type User,
 } from 'firebase/auth'
@@ -33,10 +35,13 @@ interface AuthContextValue {
   error: string | null
   firebaseConfigured: boolean
   login: (email: string, password: string) => Promise<void>
+  loginWithGoogle: () => Promise<void>
   logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+const googleProvider = new GoogleAuthProvider()
+googleProvider.setCustomParameters({ prompt: 'select_account' })
 
 async function loadProfile(user: User): Promise<UserProfile | null> {
   if (!db) return null
@@ -48,7 +53,7 @@ async function loadProfile(user: User): Promise<UserProfile | null> {
   return {
     uid: user.uid,
     email: user.email,
-    displayName: String(data.displayName ?? user.email ?? 'Usuario'),
+    displayName: String(data.displayName ?? user.displayName ?? user.email ?? 'Usuario'),
     role: data.role as UserRole,
     socioId: data.socioId ? String(data.socioId) : undefined,
     active: data.active !== false,
@@ -82,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const nextProfile = await loadProfile(firebaseUser)
         if (!nextProfile) {
           setProfile(null)
-          setError('La cuenta existe en Authentication, pero no tiene un perfil habilitado en Firestore.')
+          setError('La cuenta fue autenticada, pero todavía no está habilitada como usuario de CCNSA.')
         } else if (!nextProfile.active) {
           setProfile(null)
           setError('Esta cuenta se encuentra inactiva.')
@@ -105,12 +110,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password)
   }
 
+  async function loginWithGoogle() {
+    if (!auth) {
+      throw new Error('Firebase todavía no está configurado para este entorno.')
+    }
+    await signInWithPopup(auth, googleProvider)
+  }
+
   async function logout() {
     if (auth) await signOut(auth)
   }
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, profile, loading, error, firebaseConfigured, login, logout }),
+    () => ({ user, profile, loading, error, firebaseConfigured, login, loginWithGoogle, logout }),
     [user, profile, loading, error],
   )
 

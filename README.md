@@ -16,6 +16,7 @@ Incluye:
 - Reglas de Firestore con criterio de mínimo privilegio y denegación por defecto.
 - Configuración para Firebase Hosting.
 - Modelo de datos inicial documentado en `docs/data-model.md`.
+- Módulo desacoplado de notificaciones de estado de cuenta, con centro in-app y preferencias en modo mock; arquitectura documentada en `docs/notifications.md`.
 - Configuración de Firebase mediante variables de entorno; no hay secretos ni credenciales reales en Git.
 
 ## Requisitos
@@ -69,15 +70,17 @@ Los perfiles y roles deben ser creados o modificados únicamente por administrac
 
 ```text
 src/
-├── auth/          # sesión, perfil y autorización por roles
-├── layouts/       # estructura visual autenticada
-├── lib/           # inicialización de Firebase
-├── pages/         # login y dashboards iniciales
-├── App.tsx        # rutas
-└── main.tsx       # entrada React
+├── auth/            # sesión, perfil y autorización por roles
+├── layouts/         # estructura visual autenticada
+├── lib/             # inicialización de Firebase
+├── notifications/   # dominio y contrato desacoplado de notificaciones
+├── pages/           # login, dashboards y centro de notificaciones
+├── App.tsx          # rutas
+└── main.tsx         # entrada React
 
 docs/
-└── data-model.md
+├── data-model.md
+└── notifications.md
 
 firestore.rules
 firestore.indexes.json
@@ -91,6 +94,7 @@ firebase.json
 - Las colecciones financieras no se exponen directamente a un socio salvo los registros vinculados a su propio `socioId`.
 - `CONSULTA` es un rol de solo lectura.
 - La bitácora `audit_log` es append-only desde las reglas. En una futura arquitectura con backend confiable podrá reforzarse para que el log no dependa del cliente.
+- El módulo de notificaciones separa evento, notificación y entrega por canal. Esto permite cambiar de proveedor de email/push sin tocar la lógica de cuotas o pagos.
 - La primera versión evita Cloud Functions y Firebase Storage para mantener compatibilidad con una arquitectura inicial orientada al plan Spark.
 
 ## Próximos hitos
@@ -100,4 +104,5 @@ firebase.json
 3. Crear usuarios ficticios para cada rol y probar aislamiento de acceso.
 4. Implementar CRUD de socios, obligaciones y pagos.
 5. Diseñar aplicación de pagos a obligaciones y cálculo de saldo.
-6. Preparar migración controlada de `Lista de miembros 2026`, con conciliación antes de cualquier carga productiva.
+6. Reemplazar el servicio mock de notificaciones por un adaptador Firestore y validar reglas de lectura/preferencias.
+7. Preparar migración controlada de `Lista de miembros 2026`, con conciliación antes de cualquier carga productiva.

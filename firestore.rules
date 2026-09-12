@@ -87,6 +87,37 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /notifications/{notificationId} {
+      allow read: if isStaff()
+        || (isSocio() && resource.data.socioId == currentSocioId());
+
+      allow create: if (isAdmin() || isTreasury())
+        && request.resource.data.socioId is string;
+
+      allow update: if isSocio()
+        && resource.data.socioId == currentSocioId()
+        && request.resource.data.socioId == resource.data.socioId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'readAt'])
+        && request.resource.data.status == 'READ';
+
+      allow delete: if false;
+    }
+
+    match /notification_preferences/{socioId} {
+      allow read: if isStaff() || (isSocio() && currentSocioId() == socioId);
+
+      allow create, update: if isSocio()
+        && currentSocioId() == socioId
+        && request.resource.data.socioId == socioId;
+
+      allow delete: if false;
+    }
+
+    match /notification_deliveries/{deliveryId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
     match /audit_log/{logId} {
       allow read: if isStaff();
       allow create: if (isAdmin() || isTreasury())

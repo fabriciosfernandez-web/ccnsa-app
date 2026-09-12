@@ -1,0 +1,65 @@
+.login-actions {
+  display: grid;
+  gap: 16px;
+  margin: 20px 32px 0;
+}
+
+.google-button {
+  width: 100%;
+  min-height: 48px;
+  justify-content: center;
+  gap: 10px;
+  color: #243746;
+  background: #fff;
+  border: 1px solid #cfd9e1;
+  box-shadow: 0 4px 14px rgba(17, 42, 58, 0.06);
+}
+
+.google-button:hover:not(:disabled) {
+  background: #f8fafb;
+  border-color: #b9c7d1;
+}
+
+.google-mark {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-weight: 850;
+  color: #4285f4;
+  background: #fff;
+  border: 1px solid #e3e7ea;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #8a959f;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: #e3e8ec;
+}
+
+.login-divider span {
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .login-actions {
+    margin-left: 24px;
+    margin-right: 24px;
+  }
+
+  .login-divider span {
+    white-space: normal;
+  }
+}

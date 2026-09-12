@@ -44,10 +44,10 @@ export function NotificationsPage() {
   }
 
   return (
-    <div className="page-stack">
-      <header className="page-header">
+    <div className="page-stack legacy-page-stack">
+      <header className="legacy-page-header">
         <div>
-          <p className="eyebrow">Estado de cuenta</p>
+          <p className="legacy-kicker">Estado de cuenta</p>
           <h2>Notificaciones</h2>
           <p className="muted">
             {unreadCount === 0
@@ -55,6 +55,9 @@ export function NotificationsPage() {
               : `Tenés ${unreadCount} notificación${unreadCount === 1 ? '' : 'es'} sin leer.`}
           </p>
         </div>
+        <span className={`status-badge ${unreadCount > 0 ? 'danger' : 'success'}`}>
+          {unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día'}
+        </span>
       </header>
 
       <section className="notification-list" aria-label="Notificaciones de cuenta">
@@ -81,9 +84,9 @@ export function NotificationsPage() {
       </section>
 
       {preferences && (
-        <section className="panel notification-preferences">
+        <section className="panel legacy-panel notification-preferences">
           <div>
-            <p className="eyebrow">Preferencias</p>
+            <p className="legacy-kicker">Preferencias</p>
             <h3>Cómo querés recibir avisos</h3>
             <p className="muted">
               En esta fase las preferencias son de demostración. Los canales reales se conectarán después sin cambiar esta interfaz.

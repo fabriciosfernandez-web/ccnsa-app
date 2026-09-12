@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
+import './login.css'
 
 export function LoginPage() {
   const { user, profile, login, loginWithGoogle, error, firebaseConfigured } = useAuth()

@@ -4,45 +4,49 @@ export function AdminDashboard() {
   const { profile } = useAuth()
 
   return (
-    <section className="page-stack">
-      <header className="page-header">
+    <section className="page-stack legacy-page-stack">
+      <header className="legacy-page-header">
         <div>
-          <p className="eyebrow">Gestión interna</p>
+          <p className="legacy-kicker">Gestión interna</p>
           <h2>Panel de {profile?.role === 'CONSULTA' ? 'consulta' : 'administración'}</h2>
-          <p className="muted">Base preparada para socios, obligaciones, pagos, ingresos, egresos y actividades.</p>
+          <p className="muted">La misma identidad visual del portal, con herramientas de gestión separadas por rol.</p>
         </div>
+        <span className="status-badge neutral">Entorno de desarrollo</span>
       </header>
 
-      <div className="metric-grid">
-        <article className="metric-card">
+      <div className="metric-grid legacy-metric-grid">
+        <article className="metric-card legacy-metric-card">
           <span>Socios</span>
           <strong>—</strong>
-          <small>Se incorporarán después de la conciliación de la base 2026.</small>
+          <small>Se incorporarán después de conciliar la base 2026.</small>
         </article>
-        <article className="metric-card">
+        <article className="metric-card legacy-metric-card">
           <span>Cobranza del mes</span>
           <strong>—</strong>
-          <small>Calculada desde movimientos registrados, no desde celdas manuales.</small>
+          <small>Calculada desde pagos y movimientos registrados.</small>
         </article>
-        <article className="metric-card">
-          <span>Eventos pendientes</span>
+        <article className="metric-card legacy-metric-card">
+          <span>Alertas</span>
           <strong>0</strong>
           <small>Sin datos productivos en esta fase.</small>
         </article>
       </div>
 
-      <div className="card-grid">
-        <article className="panel">
+      <div className="card-grid legacy-card-grid">
+        <article className="panel legacy-panel feature-card">
+          <p className="legacy-kicker">Módulo</p>
           <h3>Socios y cuotas</h3>
-          <p>Alta, estado, categoría, obligaciones periódicas y pagos aplicados.</p>
+          <p>Alta, estado, categoría, obligaciones periódicas, saldos y pagos aplicados.</p>
         </article>
-        <article className="panel">
+        <article className="panel legacy-panel feature-card">
+          <p className="legacy-kicker">Módulo</p>
           <h3>Finanzas</h3>
-          <p>Ingresos y egresos normalizados con trazabilidad del movimiento.</p>
+          <p>Ingresos, egresos y trazabilidad de movimientos con una estructura normalizada.</p>
         </article>
-        <article className="panel">
+        <article className="panel legacy-panel feature-card">
+          <p className="legacy-kicker">Módulo</p>
           <h3>Actividades</h3>
-          <p>Eventos como retiros, San Juan, Club de Damas y otras actividades con su propia contabilidad.</p>
+          <p>Retiros, San Juan, Club de Damas y otras actividades con su propia contabilidad.</p>
         </article>
       </div>
     </section>

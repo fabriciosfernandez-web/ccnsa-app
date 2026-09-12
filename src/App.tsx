@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppShell } from './layouts/AppShell'
 import { AdminDashboard } from './pages/AdminDashboard'
+import { AdminSociosPage } from './pages/AdminSociosPage'
 import { ForbiddenPage } from './pages/ForbiddenPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
@@ -36,6 +37,7 @@ export default function App() {
           <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'TESORERIA', 'CONSULTA']} />}>
             <Route element={<AppShell />}>
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/socios" element={<AdminSociosPage />} />
             </Route>
           </Route>
 

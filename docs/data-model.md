@@ -7,6 +7,7 @@
 3. **Los roles no se confían al navegador.** El perfil de acceso vive en `users/{uid}` y las reglas de Firestore aplican el aislamiento.
 4. **Los datos sensibles se minimizan.** No se guardan contraseñas en Firestore y no se incluyen secretos en el repositorio.
 5. **Las operaciones financieras deben ser trazables.** Las escrituras sensibles tendrán registro de auditoría; en Spark el log es generado por el cliente autorizado y, si en el futuro se adopta backend confiable, deberá reforzarse del lado servidor.
+6. **Las notificaciones se desacoplan de los canales de entrega.** El evento de negocio, la notificación y su eventual entrega por correo/push se modelan como conceptos separados.
 
 ## Colecciones
 
@@ -106,6 +107,51 @@ Campos iniciales:
 ### `configuracion/{configId}`
 Parámetros con vigencia, por ejemplo aranceles por categoría y concepto. Los valores no se repetirán en cada fila de socio.
 
+### `notifications/{notificationId}`
+Aviso canónico vinculado a un socio. El hecho de que exista una notificación no implica que ya haya sido entregada por correo o push.
+
+Campos iniciales:
+- `socioId`
+- `kind`: `ACCOUNT_STATEMENT_READY | PAYMENT_POSTED | OVERDUE_REMINDER | GENERAL_NOTICE`
+- `title`
+- `message`
+- `status`: `UNREAD | READ`
+- `createdAt`
+- `readAt` opcional
+- `accountPeriod` opcional
+- `amount` opcional
+- `currency` opcional
+- `actionUrl` opcional
+- `sourceType` opcional
+- `sourceId` opcional
+- `deduplicationKey`
+
+### `notification_preferences/{socioId}`
+Preferencias de recepción del socio.
+
+Campos iniciales:
+- `socioId`
+- `inApp`
+- `email`
+- `push`
+- `overdueReminders`
+- `paymentConfirmations`
+- `monthlyStatements`
+- `updatedAt`
+
+### `notification_deliveries/{deliveryId}`
+Bitácora técnica de intentos de entrega por canal. En la arquitectura inicial no se escribirá desde el navegador.
+
+Campos iniciales:
+- `notificationId`
+- `channel`: `IN_APP | EMAIL | PUSH`
+- `status`: `PENDING | SENT | FAILED | SKIPPED`
+- `attemptedAt` opcional
+- `providerMessageId` opcional
+- `errorCode` opcional
+
+La arquitectura funcional completa está documentada en `docs/notifications.md`.
+
 ### `audit_log/{logId}`
 Bitácora append-only para operaciones sensibles.
 
@@ -121,8 +167,8 @@ Campos mínimos:
 
 | Rol | Alcance |
 | --- | --- |
-| `SOCIO` | Lectura exclusivamente de su perfil institucional, obligaciones y pagos vinculados. |
-| `TESORERIA` | Consulta de socios y gestión de obligaciones, pagos y movimientos financieros. |
+| `SOCIO` | Lectura exclusivamente de su perfil institucional, obligaciones, pagos y notificaciones vinculadas; puede marcar sus propias notificaciones como leídas y administrar sus preferencias. |
+| `TESORERIA` | Consulta de socios y gestión de obligaciones, pagos y movimientos financieros; puede generar notificaciones de negocio. |
 | `ADMIN` | Administración completa, incluidos usuarios, socios y configuración. |
 | `CONSULTA` | Acceso interno de solo lectura para control/auditoría. |
 

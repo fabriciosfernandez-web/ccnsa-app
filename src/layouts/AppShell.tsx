@@ -14,9 +14,14 @@ export function AppShell() {
 
         <nav className="nav-list" aria-label="Navegación principal">
           {profile?.role === 'SOCIO' ? (
-            <NavLink to="/socio" className={({ isActive }) => (isActive ? 'active' : '')}>
-              Mi estado de cuenta
-            </NavLink>
+            <>
+              <NavLink to="/socio" end className={({ isActive }) => (isActive ? 'active' : '')}>
+                Mi estado de cuenta
+              </NavLink>
+              <NavLink to="/socio/notificaciones" className={({ isActive }) => (isActive ? 'active' : '')}>
+                Notificaciones
+              </NavLink>
+            </>
           ) : (
             <NavLink to="/admin" className={({ isActive }) => (isActive ? 'active' : '')}>
               Panel de gestión

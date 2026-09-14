@@ -7,6 +7,7 @@ import { AdminSociosPage } from './pages/AdminSociosPage'
 import { ForbiddenPage } from './pages/ForbiddenPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
+import { SecurityTestPage } from './pages/SecurityTestPage'
 import { SocioDashboard } from './pages/SocioDashboard'
 
 function HomeRedirect() {
@@ -31,6 +32,7 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route path="/socio" element={<SocioDashboard />} />
               <Route path="/socio/notificaciones" element={<NotificationsPage />} />
+              <Route path="/socio/prueba-seguridad" element={<SecurityTestPage />} />
             </Route>
           </Route>
 

@@ -1,0 +1,54 @@
+.cuotas-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cuotas-period,
+.cuotas-mode {
+  font-size: 1.55rem !important;
+}
+
+.cuotas-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+.cuotas-field-label {
+  display: grid;
+  gap: 7px;
+  color: var(--navy, #173a59);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.cuotas-generate-panel {
+  min-height: 100%;
+}
+
+.cuotas-info-box {
+  padding: 14px 16px;
+  border: 1px solid #e0cf9a;
+  border-radius: 12px;
+  background: #fffaf0;
+  color: #6f5a21;
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.cuotas-table-panel {
+  overflow: hidden;
+}
+
+.cuotas-inline-button {
+  padding: 8px 12px;
+  min-width: auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .cuotas-metrics,
+  .cuotas-grid {
+    grid-template-columns: 1fr;
+  }
+}

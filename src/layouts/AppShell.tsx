@@ -33,6 +33,9 @@ export function AppShell() {
               <NavLink to="/admin/socios" className={({ isActive }) => (isActive ? 'active' : '')}>
                 Socios y cuotas
               </NavLink>
+              <NavLink to="/admin/cuotas" className={({ isActive }) => (isActive ? 'active' : '')}>
+                Tarifas y generación
+              </NavLink>
             </>
           )}
         </nav>

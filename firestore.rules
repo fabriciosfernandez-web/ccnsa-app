@@ -107,6 +107,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /tarifas_cuotas/{tarifaId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin();
+    }
+
     match /notifications/{notificationId} {
       allow read: if isStaff()
         || (isSocio() && resource.data.socioId == currentSocioId());

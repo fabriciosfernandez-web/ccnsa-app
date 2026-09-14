@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppShell } from './layouts/AppShell'
+import { AdminCuotasPage } from './pages/AdminCuotasPage'
 import { AdminDashboard } from './pages/AdminDashboard'
 import { AdminSociosPage } from './pages/AdminSociosPage'
 import { ForbiddenPage } from './pages/ForbiddenPage'
@@ -38,6 +39,7 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/socios" element={<AdminSociosPage />} />
+              <Route path="/admin/cuotas" element={<AdminCuotasPage />} />
             </Route>
           </Route>
 

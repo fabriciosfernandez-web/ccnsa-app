@@ -112,6 +112,27 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /reglas_cobro/{reglaId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /excepciones_cobro/{excepcionId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /categoria_historial/{cambioId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        && request.resource.data.socioId is string
+        && request.resource.data.categoriaAnterior is string
+        && request.resource.data.categoriaNueva is string
+        && request.resource.data.vigenteDesde is string
+        && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     match /notifications/{notificationId} {
       allow read: if isStaff()
         || (isSocio() && resource.data.socioId == currentSocioId());

@@ -105,9 +105,16 @@ export function AdminCuotasPage() {
       setError('')
       setMessage('')
       const result = await generarCuotasPeriodo(periodo, user.uid)
-      setMessage(
-        `Generación ${periodo}: ${result.creadas} obligación(es) creada(s), ${result.omitidas} omitida(s) por existir previamente, ${money(result.totalGenerado)} generados y ${money(result.creditoAplicado)} cubiertos automáticamente con saldos a favor.`,
-      )
+
+      if (result.creadas === 0 && result.omitidas > 0) {
+        setMessage(
+          `El período ${periodo} ya estaba generado para los socios alcanzados por las tarifas vigentes. No se crearon duplicados: ${result.omitidas} obligación(es) fueron omitida(s).`,
+        )
+      } else {
+        setMessage(
+          `Generación ${periodo}: ${result.creadas} obligación(es) creada(s), ${result.omitidas} omitida(s) por existir previamente, ${money(result.totalGenerado)} generados y ${money(result.creditoAplicado)} cubiertos automáticamente con saldos a favor.`,
+        )
+      }
     } catch (caught) {
       console.error('Error generating monthly obligations', caught)
       setError(devErrorMessage('No se pudieron generar las cuotas.', caught))

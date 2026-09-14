@@ -39,8 +39,9 @@ export function SocioDashboard() {
   const ultimoPago = account?.pagos[0]
   const saldoPendiente = account?.saldoPendiente ?? 0
   const saldoFavor = account?.saldoFavor ?? 0
-  const badgeText = saldoPendiente > 0 ? 'Con saldo' : saldoFavor > 0 ? 'Saldo a favor' : 'Al día'
-  const badgeClass = saldoPendiente === 0 ? 'success' : 'neutral'
+  const saldoNeto = account?.saldoNeto ?? 0
+  const badgeText = saldoNeto > 0 ? 'Con saldo' : saldoNeto < 0 ? 'Saldo a favor' : 'Al día'
+  const badgeClass = saldoNeto <= 0 ? 'success' : 'neutral'
 
   return (
     <section className="page-stack legacy-page-stack">

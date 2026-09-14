@@ -9,6 +9,7 @@ import {
   type EstadoCuenta,
   type Socio,
 } from '../data/socios'
+import { conciliarRegistrosPrevios } from '../data/reconciliacion'
 import './admin-socios.css'
 
 const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY')}`
@@ -34,8 +35,15 @@ export function AdminSociosPage() {
   const [account, setAccount] = useState<EstadoCuenta | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [reconciling, setReconciling] = useState(false)
 
   const selected = socios.find((socio) => socio.id === selectedId)
+  const needsReconciliation = Boolean(
+    canWrite
+      && account
+      && account.saldoPendiente > 0
+      && account.saldoFavor > 0,
+  )
 
   async function loadSocios(preferredId?: string) {
     try {
@@ -145,6 +153,25 @@ export function AdminSociosPage() {
     }
   }
 
+  async function reconcilePreviousRecords() {
+    if (!user || !selected || !canWrite || !needsReconciliation) return
+    try {
+      setReconciling(true)
+      setError('')
+      setMessage('')
+      const result = await conciliarRegistrosPrevios(selected.id, user.uid)
+      setMessage(result.cantidadAplicaciones > 0
+        ? `Conciliación completada. Se imputaron ${money(result.importeConciliado)} en ${result.cantidadAplicaciones} aplicación(es).`
+        : 'No se encontraron registros pendientes de conciliación.')
+      await loadAccount(selected.id)
+    } catch (caught) {
+      console.error('Error reconciling previous records', caught)
+      setError(devErrorMessage('No se pudo conciliar el estado de cuenta.', caught))
+    } finally {
+      setReconciling(false)
+    }
+  }
+
   return (
     <section className="page-stack legacy-page-stack">
       <header className="legacy-page-header">
@@ -191,6 +218,20 @@ export function AdminSociosPage() {
                 <article className="metric-card legacy-metric-card"><span>Saldo pendiente</span><strong>{money(account?.saldoPendiente ?? 0)}</strong><small>Obligaciones todavía no cubiertas.</small></article>
                 <article className="metric-card legacy-metric-card"><span>Saldo a favor</span><strong>{money(account?.saldoFavor ?? 0)}</strong><small>Pagos disponibles para futuras obligaciones.</small></article>
               </div>
+
+              {needsReconciliation && (
+                <article className="panel">
+                  <div className="panel-heading-row">
+                    <div>
+                      <h3>Conciliación pendiente</h3>
+                      <p className="muted">Hay obligaciones y pagos previos sin aplicación entre sí. Podés conciliarlos por antigüedad sin modificar los registros originales.</p>
+                    </div>
+                    <button className="button secondary inline-button" type="button" onClick={() => void reconcilePreviousRecords()} disabled={reconciling}>
+                      {reconciling ? 'Conciliando…' : 'Conciliar registros previos'}
+                    </button>
+                  </div>
+                </article>
+              )}
 
               <div className="socios-action-grid">
                 <form className="panel socios-form" onSubmit={addCharge}>

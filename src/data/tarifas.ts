@@ -4,7 +4,6 @@ import {
   getDocs,
   query,
   serverTimestamp,
-  updateDoc,
   where,
   writeBatch,
   type DocumentData,
@@ -169,7 +168,7 @@ export async function generarCuotasPeriodo(periodo: string, actorUid: string): P
         continue
       }
 
-      const result = await createObligacion({
+      const generatedInput = {
         socioId: socio.id,
         concepto: tarifa.concepto,
         periodo,
@@ -177,8 +176,9 @@ export async function generarCuotasPeriodo(periodo: string, actorUid: string): P
         fechaVencimiento: fechaVencimiento(periodo, tarifa.diaVencimiento),
         tarifaId: tarifa.id,
         origen: 'TARIFA',
-      }, actorUid)
+      } as unknown as Parameters<typeof createObligacion>[0]
 
+      const result = await createObligacion(generatedInput, actorUid)
       existentes.add(key)
       creadas += 1
       totalGenerado += tarifa.importe
@@ -187,7 +187,6 @@ export async function generarCuotasPeriodo(periodo: string, actorUid: string): P
   }
 
   const auditRef = doc(collection(database, 'audit_log'))
-  await updateDoc(doc(database, 'tarifas_cuotas', tarifasAplicables[0].id), { updatedAt: serverTimestamp() }).catch(() => undefined)
   const summaryBatch = writeBatch(database)
   summaryBatch.set(auditRef, {
     actorUid,

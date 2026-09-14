@@ -32,9 +32,16 @@ Usar exclusivamente datos ficticios en `CCNSA Web Dev`.
    - Confirmar que solo lee sus obligaciones, pagos y aplicaciones.
    - Confirmar que no puede acceder a rutas administrativas.
 
+7. **Conciliación de registros previos**
+   - Usar un socio con una obligación histórica de Gs. 37.000 y un pago histórico de Gs. 37.000 sin aplicaciones.
+   - Confirmar que el panel ADMIN muestra la opción `Conciliar registros previos`.
+   - Ejecutar la conciliación.
+   - Resultado esperado: se crea una aplicación por Gs. 37.000, la obligación queda `PAGADA`, el pago queda sin saldo disponible y el saldo neto es Gs. 0.
+   - Confirmar que el Portal del Socio muestra `Al día` cuando el saldo neto es cero.
+
 ## Criterio para merge
 
 - GitHub Actions compila sin errores.
-- Los seis casos se ejecutan correctamente.
+- Los siete casos se ejecutan correctamente.
 - Firestore Rules de la rama se despliegan al proyecto de desarrollo antes de las pruebas funcionales.
 - No se cargan datos reales ni se migra la planilla productiva en esta fase.

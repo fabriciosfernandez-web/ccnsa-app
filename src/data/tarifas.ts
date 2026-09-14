@@ -12,6 +12,12 @@ import {
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { createObligacion, listSocios, type SocioCategoria } from './socios'
+import {
+  aplicarExcepcion,
+  listCambiosCategoria,
+  listExcepcionesCobro,
+  resolverCategoriaPeriodo,
+} from './reglasCobro'
 
 export type TarifaCategoria = SocioCategoria | 'TODOS'
 
@@ -32,6 +38,8 @@ export interface GeneracionCuotasResult {
   periodo: string
   creadas: number
   omitidas: number
+  exentas: number
+  ajustadas: number
   totalGenerado: number
   creditoAplicado: number
 }
@@ -136,9 +144,11 @@ export async function setTarifaCuotaActiva(tarifaId: string, activa: boolean, ac
 
 export async function generarCuotasPeriodo(periodo: string, actorUid: string): Promise<GeneracionCuotasResult> {
   const database = requireDb()
-  const [socios, tarifas, obligacionesSnapshot] = await Promise.all([
+  const [socios, tarifas, excepciones, cambios, obligacionesSnapshot] = await Promise.all([
     listSocios(),
     listTarifasCuota(),
+    listExcepcionesCobro(),
+    listCambiosCategoria(),
     getDocs(query(collection(database, 'obligaciones'), where('periodo', '==', periodo))),
   ])
 
@@ -157,31 +167,44 @@ export async function generarCuotasPeriodo(periodo: string, actorUid: string): P
 
   let creadas = 0
   let omitidas = 0
+  let exentas = 0
+  let ajustadas = 0
   let totalGenerado = 0
   let creditoAplicado = 0
 
   for (const socio of socios.filter((item) => item.estado === 'ACTIVO')) {
-    for (const tarifa of tarifasAplicables.filter((item) => categoriaAplica(item, socio.categoria))) {
+    const categoriaPeriodo = resolverCategoriaPeriodo(socio, periodo, cambios)
+    for (const tarifa of tarifasAplicables.filter((item) => categoriaAplica(item, categoriaPeriodo))) {
       const key = `${socio.id}|${tarifa.id}`
       if (existentes.has(key)) {
         omitidas += 1
         continue
       }
 
+      const excepcion = aplicarExcepcion(socio.id, 'MENSUAL', periodo, tarifa.importe, excepciones)
+      const importe = excepcion.estado === 'EXENTA' ? tarifa.importe : excepcion.importe
       const generatedInput = {
         socioId: socio.id,
         concepto: tarifa.concepto,
         periodo,
-        importe: tarifa.importe,
+        importe,
+        estado: excepcion.estado,
         fechaVencimiento: fechaVencimiento(periodo, tarifa.diaVencimiento),
         tarifaId: tarifa.id,
+        excepcionId: excepcion.excepcion?.id ?? null,
+        categoriaAplicada: categoriaPeriodo,
+        importeBase: tarifa.importe,
         origen: 'TARIFA',
       } as unknown as Parameters<typeof createObligacion>[0]
 
       const result = await createObligacion(generatedInput, actorUid)
       existentes.add(key)
       creadas += 1
-      totalGenerado += tarifa.importe
+      if (excepcion.estado === 'EXENTA') exentas += 1
+      else {
+        totalGenerado += importe
+        if (importe !== tarifa.importe) ajustadas += 1
+      }
       creditoAplicado += result.importeAplicado
     }
   }
@@ -195,11 +218,13 @@ export async function generarCuotasPeriodo(periodo: string, actorUid: string): P
     periodo,
     creadas,
     omitidas,
+    exentas,
+    ajustadas,
     totalGenerado,
     creditoAplicado,
     createdAt: serverTimestamp(),
   })
   await summaryBatch.commit()
 
-  return { periodo, creadas, omitidas, totalGenerado, creditoAplicado }
+  return { periodo, creadas, omitidas, exentas, ajustadas, totalGenerado, creditoAplicado }
 }

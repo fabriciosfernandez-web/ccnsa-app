@@ -1,6 +1,6 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
 import { getAuth, type Auth } from 'firebase/auth'
-import { getFirestore, type Firestore } from 'firebase/firestore'
+import { initializeFirestore, type Firestore } from 'firebase/firestore'
 
 // Firebase web configuration is public client configuration, not a private credential.
 // Environment variables override these development defaults when another environment is used.
@@ -36,4 +36,6 @@ export const firebaseApp: FirebaseApp | null = firebaseConfigured
   : null
 
 export const auth: Auth | null = firebaseApp ? getAuth(firebaseApp) : null
-export const db: Firestore | null = firebaseApp ? getFirestore(firebaseApp) : null
+export const db: Firestore | null = firebaseApp
+  ? initializeFirestore(firebaseApp, { ignoreUndefinedProperties: true })
+  : null

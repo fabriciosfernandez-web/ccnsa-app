@@ -54,12 +54,32 @@ service cloud.firestore {
 
     match /obligaciones/{obligacionId} {
       allow read: if isStaff() || (isSocio() && resource.data.socioId == currentSocioId());
-      allow create, update, delete: if isAdmin() || isTreasury();
+      allow create: if (isAdmin() || isTreasury())
+        && request.resource.data.socioId is string
+        && request.resource.data.importe is number
+        && request.resource.data.importe > 0;
+      allow update, delete: if isAdmin() || isTreasury();
     }
 
     match /pagos/{pagoId} {
       allow read: if isStaff() || (isSocio() && resource.data.socioId == currentSocioId());
-      allow create, update, delete: if isAdmin() || isTreasury();
+      allow create: if (isAdmin() || isTreasury())
+        && request.resource.data.socioId is string
+        && request.resource.data.importe is number
+        && request.resource.data.importe > 0;
+      allow update, delete: if isAdmin() || isTreasury();
+    }
+
+    match /aplicaciones_pago/{aplicacionId} {
+      allow read: if isStaff() || (isSocio() && resource.data.socioId == currentSocioId());
+      allow create: if (isAdmin() || isTreasury())
+        && request.resource.data.socioId is string
+        && request.resource.data.pagoId is string
+        && request.resource.data.obligacionId is string
+        && request.resource.data.importe is number
+        && request.resource.data.importe > 0
+        && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
     }
 
     match /ingresos/{ingresoId} {

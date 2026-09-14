@@ -1,12 +1,12 @@
-# Modelo de datos inicial — CCNSA App
+# Modelo de datos — CCNSA App
 
 ## Principios
 
-1. **Obligaciones y pagos son entidades distintas.** La deuda se calcula como obligaciones exigibles menos pagos aplicados; no se representa mediante una celda mensual vacía o completada.
+1. **Obligaciones y pagos son entidades distintas.** La deuda se calcula a partir de obligaciones, pagos y sus aplicaciones; no se representa mediante una celda mensual vacía o completada.
 2. **La planilla 2026 no es la base operativa de la aplicación.** Se utilizará como fuente de migración y conciliación antes de pasar a Firestore.
 3. **Los roles no se confían al navegador.** El perfil de acceso vive en `users/{uid}` y las reglas de Firestore aplican el aislamiento.
 4. **Los datos sensibles se minimizan.** No se guardan contraseñas en Firestore y no se incluyen secretos en el repositorio.
-5. **Las operaciones financieras deben ser trazables.** Las escrituras sensibles tendrán registro de auditoría; en Spark el log es generado por el cliente autorizado y, si en el futuro se adopta backend confiable, deberá reforzarse del lado servidor.
+5. **Las operaciones financieras deben ser trazables.** Las escrituras sensibles generan auditoría y las aplicaciones de pagos son append-only.
 6. **Las notificaciones se desacoplan de los canales de entrega.** El evento de negocio, la notificación y su eventual entrega por correo/push se modelan como conceptos separados.
 
 ## Colecciones
@@ -26,7 +26,7 @@ Campos iniciales:
 Maestro de socios.
 
 Campos iniciales:
-- `nombreCompleto`
+- `nombre`
 - `documento` o identificador institucional cuando corresponda
 - `categoria`
 - `estado`
@@ -41,31 +41,52 @@ La relación de autenticación se mantiene en `users`, no mediante contraseña a
 ### `obligaciones/{obligacionId}`
 Importes que el socio debe abonar.
 
-Campos iniciales:
+Campos:
 - `socioId`
 - `concepto`: membresía, cuota mensual, ingreso, deuda anterior u otro
 - `periodo`: por ejemplo `2026-08`
 - `importe`
-- `fechaVencimiento`
+- `fechaVencimiento` opcional
 - `estado`: `PENDIENTE | PARCIAL | PAGADA | ANULADA | EXENTA`
 - `createdAt`
 - `updatedAt`
 
+`PENDIENTE`, `PARCIAL` y `PAGADA` se presentan en la interfaz a partir del importe aplicado. `ANULADA` y `EXENTA` son estados administrativos explícitos.
+
 ### `pagos/{pagoId}`
 Pagos efectivamente registrados.
 
-Campos iniciales:
+Campos:
 - `socioId`
-- `fechaPago`
+- `fecha`
 - `importe`
 - `medioPago`
 - `referencia` opcional
 - `estado`: `REGISTRADO | ANULADO`
-- `registradoPorUid`
 - `createdAt`
-- `updatedAt`
 
-La aplicación de un pago a una o varias obligaciones se diseñará en el siguiente hito para admitir pagos parciales y anticipados sin perder trazabilidad.
+Un pago puede quedar total o parcialmente sin aplicar. Ese remanente representa **saldo a favor** del socio.
+
+### `aplicaciones_pago/{aplicacionId}`
+Vínculo trazable entre un pago y una obligación.
+
+Campos:
+- `socioId`
+- `pagoId`
+- `obligacionId`
+- `importe`
+- `actorUid`
+- `createdAt`
+
+Reglas funcionales de la Fase 2:
+- un pago nuevo se imputa automáticamente a las obligaciones pendientes más antiguas;
+- una obligación nueva consume automáticamente saldos a favor existentes;
+- un pago puede cubrir parcialmente una obligación;
+- un pago puede cubrir varias obligaciones;
+- un pago mayor que la deuda deja remanente como saldo a favor;
+- las aplicaciones son append-only para mantener trazabilidad.
+
+En la arquitectura Spark inicial la aplicación se calcula en el cliente autorizado y se registra en un batch de Firestore. Antes de una operación productiva de mayor escala debe reforzarse con backend transaccional confiable.
 
 ### `ingresos/{ingresoId}` y `egresos/{egresoId}`
 Movimientos financieros generales no derivados automáticamente de cuotas, según corresponda.
@@ -158,16 +179,30 @@ Bitácora append-only para operaciones sensibles.
 Campos mínimos:
 - `actorUid`
 - `action`
-- `entityType`
+- `entity`
 - `entityId`
-- `timestamp`
-- `summary`
+- `socioId` cuando corresponda
+- `createdAt`
+- datos resumidos de la operación, sin secretos
+
+## Cálculo del estado de cuenta
+
+Para un socio:
+
+- `totalCargos` = suma de obligaciones no anuladas ni exentas;
+- `totalPagos` = suma de pagos no anulados;
+- `importeAplicado` de una obligación = suma de `aplicaciones_pago` vinculadas;
+- `saldoPendiente` = importe de la obligación menos aplicaciones;
+- `saldoFavor` = suma de pagos menos sus aplicaciones;
+- `saldoNeto` = saldo pendiente menos saldo a favor.
+
+El saldo a favor no se pierde: se conserva en el pago original y se consume cuando aparecen nuevas obligaciones.
 
 ## Roles iniciales
 
 | Rol | Alcance |
 | --- | --- |
-| `SOCIO` | Lectura exclusivamente de su perfil institucional, obligaciones, pagos y notificaciones vinculadas; puede marcar sus propias notificaciones como leídas y administrar sus preferencias. |
+| `SOCIO` | Lectura exclusivamente de su perfil institucional, obligaciones, pagos, aplicaciones y notificaciones vinculadas; puede marcar sus propias notificaciones como leídas y administrar sus preferencias. |
 | `TESORERIA` | Consulta de socios y gestión de obligaciones, pagos y movimientos financieros; puede generar notificaciones de negocio. |
 | `ADMIN` | Administración completa, incluidos usuarios, socios y configuración. |
 | `CONSULTA` | Acceso interno de solo lectura para control/auditoría. |

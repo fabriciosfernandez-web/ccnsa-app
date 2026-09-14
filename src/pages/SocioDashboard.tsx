@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
-import { listObligaciones, listPagos, type Obligacion, type Pago } from '../data/socios'
+import { loadEstadoCuenta, type EstadoCuenta } from '../data/socios'
 
 const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY')}`
 
+function statusClass(status: string) {
+  return status === 'PAGADA' ? 'success' : 'neutral'
+}
+
 export function SocioDashboard() {
   const { profile } = useAuth()
-  const [obligaciones, setObligaciones] = useState<Obligacion[]>([])
-  const [pagos, setPagos] = useState<Pago[]>([])
+  const [account, setAccount] = useState<EstadoCuenta | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -22,12 +25,7 @@ export function SocioDashboard() {
 
       try {
         setError('')
-        const [charges, payments] = await Promise.all([
-          listObligaciones(profile.socioId),
-          listPagos(profile.socioId),
-        ])
-        setObligaciones(charges)
-        setPagos(payments)
+        setAccount(await loadEstadoCuenta(profile.socioId))
       } catch {
         setError('No fue posible cargar tu estado de cuenta.')
       } finally {
@@ -38,13 +36,12 @@ export function SocioDashboard() {
     void loadAccount()
   }, [profile?.socioId])
 
-  const totalCargos = useMemo(
-    () => obligaciones.filter((item) => item.estado !== 'ANULADO').reduce((sum, item) => sum + item.importe, 0),
-    [obligaciones],
-  )
-  const totalPagos = useMemo(() => pagos.reduce((sum, item) => sum + item.importe, 0), [pagos])
-  const saldo = Math.max(0, totalCargos - totalPagos)
-  const ultimoPago = pagos[0]
+  const ultimoPago = account?.pagos[0]
+  const saldoPendiente = account?.saldoPendiente ?? 0
+  const saldoFavor = account?.saldoFavor ?? 0
+  const saldoNeto = account?.saldoNeto ?? 0
+  const badgeText = saldoNeto > 0 ? 'Con saldo' : saldoNeto < 0 ? 'Saldo a favor' : 'Al día'
+  const badgeClass = saldoNeto <= 0 ? 'success' : 'neutral'
 
   return (
     <section className="page-stack legacy-page-stack">
@@ -54,9 +51,7 @@ export function SocioDashboard() {
           <h2>Hola, {profile?.displayName}</h2>
           <p className="muted">Consultá tu estado de cuenta, últimos movimientos y avisos del Centro.</p>
         </div>
-        <span className={`status-badge ${saldo === 0 ? 'success' : 'neutral'}`}>
-          {saldo === 0 ? 'Al día' : 'Con saldo'}
-        </span>
+        <span className={`status-badge ${badgeClass}`}>{badgeText}</span>
       </header>
 
       {error && <div className="notice error">{error}</div>}
@@ -67,18 +62,18 @@ export function SocioDashboard() {
           <div className="metric-grid legacy-metric-grid">
             <article className="metric-card legacy-metric-card">
               <span>Saldo pendiente</span>
-              <strong>{money(saldo)}</strong>
-              <small>Cargos registrados menos pagos.</small>
+              <strong>{money(saldoPendiente)}</strong>
+              <small>Obligaciones todavía no cubiertas.</small>
+            </article>
+            <article className="metric-card legacy-metric-card">
+              <span>Saldo a favor</span>
+              <strong>{money(saldoFavor)}</strong>
+              <small>Disponible para futuras cuotas u obligaciones.</small>
             </article>
             <article className="metric-card legacy-metric-card">
               <span>Último pago</span>
               <strong>{ultimoPago ? money(ultimoPago.importe) : '—'}</strong>
               <small>{ultimoPago ? ultimoPago.fecha : 'Sin pagos registrados.'}</small>
-            </article>
-            <article className="metric-card legacy-metric-card">
-              <span>Cargos registrados</span>
-              <strong>{money(totalCargos)}</strong>
-              <small>{obligaciones.length} obligación(es).</small>
             </article>
           </div>
 
@@ -100,18 +95,22 @@ export function SocioDashboard() {
                       <th>Periodo</th>
                       <th>Concepto</th>
                       <th>Importe</th>
+                      <th>Aplicado</th>
+                      <th>Pendiente</th>
                       <th>Estado</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {obligaciones.length === 0 ? (
-                      <tr><td colSpan={4}>Sin obligaciones registradas.</td></tr>
-                    ) : obligaciones.map((item) => (
+                    {!account || account.obligaciones.length === 0 ? (
+                      <tr><td colSpan={6}>Sin obligaciones registradas.</td></tr>
+                    ) : account.obligaciones.map((item) => (
                       <tr key={item.id}>
                         <td>{item.periodo}</td>
                         <td>{item.concepto}</td>
                         <td>{money(item.importe)}</td>
-                        <td><span className="status-badge neutral">{item.estado}</span></td>
+                        <td>{money(item.importeAplicado)}</td>
+                        <td>{money(item.saldoPendiente)}</td>
+                        <td><span className={`status-badge ${statusClass(item.estadoCalculado)}`}>{item.estadoCalculado}</span></td>
                       </tr>
                     ))}
                   </tbody>

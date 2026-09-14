@@ -24,6 +24,9 @@ export function AppShell() {
               <NavLink to="/socio/notificaciones" className={({ isActive }) => (isActive ? 'active' : '')}>
                 Notificaciones
               </NavLink>
+              <NavLink to="/socio/prueba-seguridad" className={({ isActive }) => (isActive ? 'active' : '')}>
+                Prueba de seguridad
+              </NavLink>
             </>
           ) : (
             <>

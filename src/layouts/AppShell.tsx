@@ -36,6 +36,9 @@ export function AppShell() {
               <NavLink to="/admin/cuotas" className={({ isActive }) => (isActive ? 'active' : '')}>
                 Tarifas y generación
               </NavLink>
+              <NavLink to="/admin/reglas-cobro" className={({ isActive }) => (isActive ? 'active' : '')}>
+                Reglas especiales
+              </NavLink>
             </>
           )}
         </nav>

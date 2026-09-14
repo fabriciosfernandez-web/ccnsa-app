@@ -17,6 +17,13 @@ const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY'
 const today = new Date().toISOString().slice(0, 10)
 const currentPeriod = new Date().toISOString().slice(0, 7)
 
+function devErrorMessage(prefix: string, error: unknown) {
+  if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
+    if (error instanceof Error) return `${prefix} ${error.message}`
+  }
+  return prefix
+}
+
 export function AdminSociosPage() {
   const { user, profile } = useAuth()
   const canWrite = profile?.role === 'ADMIN' || profile?.role === 'TESORERIA'
@@ -38,8 +45,8 @@ export function AdminSociosPage() {
       setSocios(data)
       const nextId = preferredId || selectedId || data[0]?.id || ''
       setSelectedId(nextId)
-    } catch {
-      setError('No fue posible cargar los socios.')
+    } catch (caught) {
+      setError(devErrorMessage('No fue posible cargar los socios.', caught))
     }
   }
 
@@ -49,8 +56,8 @@ export function AdminSociosPage() {
       const [charges, payments] = await Promise.all([listObligaciones(socioId), listPagos(socioId)])
       setObligaciones(charges)
       setPagos(payments)
-    } catch {
-      setError('No fue posible cargar el estado de cuenta.')
+    } catch (caught) {
+      setError(devErrorMessage('No fue posible cargar el estado de cuenta.', caught))
     }
   }
 
@@ -60,11 +67,13 @@ export function AdminSociosPage() {
   async function addSocio(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!user || profile?.role !== 'ADMIN') return
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     const nombre = String(form.get('nombre') || '').trim()
     if (!nombre) return
     try {
       setError('')
+      setMessage('')
       const id = await createSocio({
         nombre,
         email: String(form.get('email') || '').trim() || undefined,
@@ -72,22 +81,25 @@ export function AdminSociosPage() {
         estado: 'ACTIVO',
         fechaIngreso: today,
       }, user.uid)
-      event.currentTarget.reset()
+      formElement.reset()
       setMessage('Socio de prueba creado.')
       await loadSocios(id)
-    } catch {
-      setError('No se pudo crear el socio.')
+    } catch (caught) {
+      console.error('Error creating socio', caught)
+      setError(devErrorMessage('No se pudo crear el socio.', caught))
     }
   }
 
   async function addCharge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!user || !selected || !canWrite) return
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     const importe = Number(form.get('importe') || 0)
     if (importe <= 0) return
     try {
       setError('')
+      setMessage('')
       await createObligacion({
         socioId: selected.id,
         concepto: String(form.get('concepto') || 'Cuota social'),
@@ -95,33 +107,37 @@ export function AdminSociosPage() {
         importe,
         estado: 'PENDIENTE',
       }, user.uid)
-      event.currentTarget.reset()
+      formElement.reset()
       setMessage('Obligación registrada.')
       await loadAccount(selected.id)
-    } catch {
-      setError('No se pudo registrar la obligación.')
+    } catch (caught) {
+      console.error('Error creating obligation', caught)
+      setError(devErrorMessage('No se pudo registrar la obligación.', caught))
     }
   }
 
   async function addPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!user || !selected || !canWrite) return
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     const importe = Number(form.get('importe') || 0)
     if (importe <= 0) return
     try {
       setError('')
+      setMessage('')
       await createPago({
         socioId: selected.id,
         importe,
         fecha: String(form.get('fecha') || today),
         referencia: String(form.get('referencia') || '').trim() || undefined,
       }, user.uid)
-      event.currentTarget.reset()
+      formElement.reset()
       setMessage('Pago registrado.')
       await loadAccount(selected.id)
-    } catch {
-      setError('No se pudo registrar el pago.')
+    } catch (caught) {
+      console.error('Error creating payment', caught)
+      setError(devErrorMessage('No se pudo registrar el pago.', caught))
     }
   }
 

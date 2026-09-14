@@ -294,32 +294,36 @@ export async function createObligacion(
   const obligacionRef = doc(collection(database, 'obligaciones'))
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
-  let restante = input.importe
+  const estadoInicial = input.estado ?? 'PENDIENTE'
+  const sinImputacion = estadoInicial === 'EXENTA' || estadoInicial === 'ANULADA'
+  let restante = sinImputacion ? 0 : input.importe
   let aplicado = 0
   let cantidadAplicaciones = 0
 
   batch.set(obligacionRef, {
     ...input,
-    estado: input.estado ?? 'PENDIENTE',
+    estado: estadoInicial,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
 
-  for (const pago of pagosConCredito) {
-    if (restante <= 0) break
-    const importe = Math.min(restante, pago.disponible)
-    const aplicacionRef = doc(collection(database, 'aplicaciones_pago'))
-    batch.set(aplicacionRef, {
-      socioId: input.socioId,
-      pagoId: pago.id,
-      obligacionId: obligacionRef.id,
-      importe,
-      actorUid,
-      createdAt: serverTimestamp(),
-    })
-    restante -= importe
-    aplicado += importe
-    cantidadAplicaciones += 1
+  if (!sinImputacion) {
+    for (const pago of pagosConCredito) {
+      if (restante <= 0) break
+      const importe = Math.min(restante, pago.disponible)
+      const aplicacionRef = doc(collection(database, 'aplicaciones_pago'))
+      batch.set(aplicacionRef, {
+        socioId: input.socioId,
+        pagoId: pago.id,
+        obligacionId: obligacionRef.id,
+        importe,
+        actorUid,
+        createdAt: serverTimestamp(),
+      })
+      restante -= importe
+      aplicado += importe
+      cantidadAplicaciones += 1
+    }
   }
 
   batch.set(auditRef, {
@@ -329,6 +333,7 @@ export async function createObligacion(
     entityId: obligacionRef.id,
     socioId: input.socioId,
     importe: input.importe,
+    estado: estadoInicial,
     creditoAplicado: aplicado,
     createdAt: serverTimestamp(),
   })

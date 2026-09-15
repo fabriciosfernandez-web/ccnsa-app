@@ -10,6 +10,7 @@ import {
   type MigrationTariffConfig,
 } from './migration2026'
 import { interpretLegacyColor2026, type LegacyColorMeaning } from './legacyMigration2026Colors'
+import { getLegacyMemberOverride2026 } from './legacyMigration2026Overrides'
 
 export type SnapshotObligationKind = 'CUOTA_MENSUAL' | 'MEMBRESIA' | 'APORTE_INGRESO' | 'AJUSTE_LEGACY'
 export type SnapshotObligationState = 'PENDIENTE' | 'PARCIAL' | 'PAGADA' | 'EXENTA' | 'REVISAR'
@@ -296,7 +297,120 @@ function calculateValidatedExitAdjustment(
   return adjustment
 }
 
+function buildFullExemptionSnapshot(
+  input: LegacyMemberInput,
+  tariffs: MigrationTariffConfig,
+): MigrationMemberSnapshot2026 | null {
+  const { member, formula, meses } = input
+  const override = getLegacyMemberOverride2026(member.nombre)
+  if (!override?.exoneracionTotal) return null
+
+  const motivo = override.motivoExoneracion ?? 'Exoneración total de cargos validada para la migración.'
+  const obligaciones: MigrationSnapshotObligation[] = []
+  const movimientos: MigrationSnapshotMovement[] = []
+  const observaciones = [
+    `${motivo} En el sistema nuevo debe migrarse como excepción EXENTO con alcance TODOS; no como pagos en efectivo.`,
+  ]
+  const monthlyRate = member.categoriaPropuesta === 'CASADO'
+    ? tariffs.aporteCasado
+    : member.categoriaPropuesta === 'SOLTERO'
+      ? tariffs.aporteSoltero
+      : null
+
+  if (monthlyRate !== null) {
+    for (const monthPreview of meses) {
+      if (monthPreview.legacyMeaning.kind !== 'EXONERACION') continue
+      const sourceCell = `${MONTH_COLUMNS[monthPreview.month - 1]}${member.row}`
+      const key = `row-${member.row}-cuota-${monthPreview.periodo}`
+      obligaciones.push({
+        key,
+        kind: 'CUOTA_MENSUAL',
+        concepto: `Cuota social ${MONTH_LABELS[monthPreview.month - 1]} 2026`,
+        periodo: monthPreview.periodo,
+        importe: monthlyRate,
+        estado: 'EXENTA',
+        sourceCell,
+        sourceNote: motivo,
+      })
+      movimientos.push({
+        kind: 'EXONERACION',
+        importe: monthlyRate,
+        periodoObligacion: monthPreview.periodo,
+        targetKey: key,
+        sourceCell,
+        confidence: 'ALTA',
+        note: motivo,
+      })
+    }
+  } else {
+    observaciones.push('No fue posible determinar la tarifa mensual nominal para cuantificar las exoneraciones históricas.')
+  }
+
+  const membresia = tariffs.membresia ?? 35000
+  if (membresia > EPSILON) {
+    const key = `row-${member.row}-membresia-2026`
+    obligaciones.push({
+      key,
+      kind: 'MEMBRESIA',
+      concepto: 'Membresía 2026',
+      periodo: '2026-ANUAL',
+      importe: membresia,
+      estado: 'EXENTA',
+      sourceCell: `H${member.row}`,
+      sourceNote: motivo,
+    })
+    movimientos.push({
+      kind: 'EXONERACION',
+      importe: membresia,
+      periodoObligacion: '2026-ANUAL',
+      targetKey: key,
+      sourceCell: `H${member.row}`,
+      confidence: 'ALTA',
+      note: motivo,
+    })
+  }
+
+  const totalExonerado = obligaciones.reduce((sum, item) => sum + item.importe, 0)
+  const deudaFuente = member.deuda2026 ?? 0
+  const deudaObjetivoMigracion = 0
+  const deudaReconstruida = 0
+  const diferencia = 0
+
+  if (deudaFuente > EPSILON) {
+    observaciones.push(`La hoja registra deuda de Gs. ${Math.round(deudaFuente).toLocaleString('es-PY')}, pero la exoneración total validada fija la deuda objetivo de migración en Gs. 0.`)
+  }
+
+  return {
+    row: member.row,
+    nombre: member.nombre,
+    numero: member.numero,
+    formulaDeuda2026: formula,
+    deudaFuente,
+    deudaObjetivoMigracion,
+    ajusteValidadoBaja: 0,
+    cobradoHoja: member.sumatoriaHoja ?? 0,
+    ajustesExcluidos: 0,
+    cobrosElegibles: 0,
+    cargosObjetivo: 0,
+    obligaciones,
+    movimientos,
+    totalCargosNormales: 0,
+    totalPagosElegibles: 0,
+    totalExonerado,
+    deudaReconstruida,
+    diferencia,
+    ajusteCargoLegacy: 0,
+    ajustePagoLegacy: 0,
+    unknownColorCount: 0,
+    estado: deudaFuente > EPSILON ? 'CONCILIADO_CON_AJUSTES' : 'LIMPIO',
+    observaciones,
+  }
+}
+
 function buildMemberSnapshot(input: LegacyMemberInput, tariffs: MigrationTariffConfig): MigrationMemberSnapshot2026 {
+  const fullExemption = buildFullExemptionSnapshot(input, tariffs)
+  if (fullExemption) return fullExemption
+
   const { member, formula, meses, ajustesExcluidos } = input
   const deudaFuente = member.deuda2026 ?? 0
   const cobradoHoja = member.sumatoriaHoja ?? 0

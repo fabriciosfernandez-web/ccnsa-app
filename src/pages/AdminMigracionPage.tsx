@@ -24,6 +24,10 @@ function snapshotBadge(state: 'LIMPIO' | 'CONCILIADO_CON_AJUSTES' | 'REVISAR') {
   return 'neutral'
 }
 
+function expectedLegacySum(member: MigrationPreview['members'][number]) {
+  return (member.aporteIngreso ?? 0) + (member.membresia ?? 0) + member.cobradoMensual
+}
+
 export function AdminMigracionPage() {
   const { user, profile } = useAuth()
   const [preview, setPreview] = useState<MigrationPreview | null>(null)
@@ -74,6 +78,12 @@ export function AdminMigracionPage() {
   const snapshotDifference = snapshot
     ? snapshot.totals.deudaReconstruida - snapshot.totals.deudaFuente
     : null
+  const basicMismatches = preview
+    ? preview.members.filter((member) =>
+        member.sumatoriaHoja !== null
+        && Math.abs(member.sumatoriaHoja - expectedLegacySum(member)) > 0.5,
+      ).length
+    : 0
 
   return (
     <section className="page-stack legacy-page-stack migration-page">
@@ -132,7 +142,7 @@ export function AdminMigracionPage() {
           <p className="muted">Primero validamos la fuente. Después reconstruimos un snapshot de obligaciones, pagos históricos y exoneraciones sin trasladar al sistema nuevo la lógica obsoleta de colores.</p>
           <ul className="migration-checklist">
             <li>Detectar socios y tarifas base.</li>
-            <li>Conciliar cobros mensuales con la sumatoria anual.</li>
+            <li>Conciliar cuotas, membresía y aporte de ingreso contra la sumatoria anual.</li>
             <li>Usar los colores solo como adaptador legacy para el mes de cobro.</li>
             <li>Reconocer el rojo de julio como exoneración por retiro anual.</li>
             <li>Separar deuda 2025 y deuda 2026.</li>
@@ -161,12 +171,12 @@ export function AdminMigracionPage() {
             <article className="metric-card legacy-metric-card">
               <span>Cobros mensuales 2026</span>
               <strong>{money(preview.totalCobradoMensual)}</strong>
-              <small>Suma de importes numéricos Enero–Diciembre.</small>
+              <small>Solo cuotas de Enero–Diciembre; membresía e ingreso se muestran aparte.</small>
             </article>
             <article className="metric-card legacy-metric-card">
               <span>Conciliación básica</span>
-              <strong>{preview.sumatoriaMismatches}</strong>
-              <small>Fila(s) donde meses ≠ Sumatoria Anual.</small>
+              <strong>{basicMismatches}</strong>
+              <small>Fila(s) donde cuotas + membresía + ingreso ≠ Sumatoria Anual.</small>
             </article>
           </div>
 
@@ -228,27 +238,30 @@ export function AdminMigracionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.members.map((member) => (
-                    <tr key={`${member.row}-${member.numero}`}>
-                      <td>{member.row}</td>
-                      <td>
-                        <strong>{member.nombre}</strong>
-                        <small>{member.rango || 'Sin rango'} · {member.mesesConImporte} mes(es) con importe</small>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${member.categoriaPropuesta === 'REVISAR' ? 'neutral' : 'active'}`}>
-                          {member.categoriaPropuesta}
-                        </span>
-                      </td>
-                      <td>{money(member.cobradoMensual)}</td>
-                      <td>{money(member.sumatoriaHoja)}</td>
-                      <td>{money(member.deuda2026)}</td>
-                      <td>{money(member.deuda2025)}</td>
-                      <td className="migration-observations">
-                        {member.observaciones.length === 0 ? '—' : member.observaciones.join(' ')}
-                      </td>
-                    </tr>
-                  ))}
+                  {preview.members.map((member) => {
+                    const observations = member.observaciones.filter((item) => !item.startsWith('Sumatoria anual difiere'))
+                    return (
+                      <tr key={`${member.row}-${member.numero}`}>
+                        <td>{member.row}</td>
+                        <td>
+                          <strong>{member.nombre}</strong>
+                          <small>{member.rango || 'Sin rango'} · {member.mesesConImporte} mes(es) con importe</small>
+                        </td>
+                        <td>
+                          <span className={`status-badge ${member.categoriaPropuesta === 'REVISAR' ? 'neutral' : 'active'}`}>
+                            {member.categoriaPropuesta}
+                          </span>
+                        </td>
+                        <td>{money(member.cobradoMensual)}</td>
+                        <td>{money(member.sumatoriaHoja)}</td>
+                        <td>{money(member.deuda2026)}</td>
+                        <td>{money(member.deuda2025)}</td>
+                        <td className="migration-observations">
+                          {observations.length === 0 ? '—' : observations.join(' ')}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -344,7 +357,7 @@ export function AdminMigracionPage() {
                               <small>Fila {member.row} · {member.obligaciones.length} obligación(es) · {member.movimientos.length} movimiento(s)</small>
                             </td>
                             <td>
-                              <span className={`status-badge ${snapshotBadge(member.estado)}`}>{member.estado.replaceAll('_', ' ')}</span>
+                              <span className={`status-badge ${snapshotBadge(member.estado)}`}>{member.estado.replace(/_/g, ' ')}</span>
                             </td>
                             <td>{money(member.totalCargosNormales)}</td>
                             <td>{money(member.totalPagosElegibles)}</td>

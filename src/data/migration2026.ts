@@ -4,8 +4,10 @@ import {
   type User,
 } from 'firebase/auth'
 import { getLegacyMemberOverride2026 } from './legacyMigration2026Overrides'
+import { interpretLegacyMemberColor2026 } from './legacyMigration2026MemberColors'
 
 export type CategoriaPropuesta = 'SOLTERO' | 'CASADO' | 'REVISAR'
+export type CategoriaFuente = 'COLOR_NOMBRE' | 'INFERIDA_POR_IMPORTES'
 export type EstadoMigracionPropuesto = 'ACTIVO' | 'INACTIVO'
 
 export interface MigrationMemberPreview {
@@ -17,6 +19,8 @@ export interface MigrationMemberPreview {
   estadoPropuesto: EstadoMigracionPropuesto
   fechaBaja?: string
   categoriaPropuesta: CategoriaPropuesta
+  categoriaFuente: CategoriaFuente
+  colorNombre: string
   aporteIngreso: number | null
   membresia: number | null
   cobradoMensual: number
@@ -58,6 +62,11 @@ export interface MigrationPreview {
     inactivos: number
   }
   categorias: {
+    soltero: number
+    casado: number
+    revisar: number
+  }
+  categoriasActivas: {
     soltero: number
     casado: number
     revisar: number
@@ -198,28 +207,33 @@ async function getSheetsAccessToken(user: User) {
   return credential.accessToken
 }
 
+function tariffEvidence(
+  monthValues: SheetValue[],
+  aporteSoltero: number | null,
+  aporteCasado: number | null,
+) {
+  const amounts = monthValues
+    .map(asNumber)
+    .filter((value): value is number => value !== null && value > 0)
+  return {
+    solteroMatches: aporteSoltero === null ? 0 : amounts.filter((value) => value === aporteSoltero).length,
+    casadoMatches: aporteCasado === null ? 0 : amounts.filter((value) => value === aporteCasado).length,
+  }
+}
+
 function inferCategory(
   monthValues: SheetValue[],
   aporteSoltero: number | null,
   aporteCasado: number | null,
 ): { categoria: CategoriaPropuesta; observacion?: string } {
-  const amounts = monthValues
-    .map(asNumber)
-    .filter((value): value is number => value !== null && value > 0)
+  const { solteroMatches, casadoMatches } = tariffEvidence(monthValues, aporteSoltero, aporteCasado)
 
-  if (amounts.length === 0 || aporteSoltero === null || aporteCasado === null) {
+  if (solteroMatches === 0 && casadoMatches === 0) {
     return { categoria: 'REVISAR', observacion: 'Sin base suficiente para inferir categoría.' }
   }
-
-  const solteroMatches = amounts.filter((value) => value === aporteSoltero).length
-  const casadoMatches = amounts.filter((value) => value === aporteCasado).length
-
   if (solteroMatches > 0 && casadoMatches === 0) return { categoria: 'SOLTERO' }
   if (casadoMatches > 0 && solteroMatches === 0) return { categoria: 'CASADO' }
-  if (solteroMatches > 0 && casadoMatches > 0) {
-    return { categoria: 'REVISAR', observacion: 'Tiene importes compatibles con ambas categorías; podría existir un cambio histórico.' }
-  }
-  return { categoria: 'REVISAR', observacion: 'Los importes mensuales no coinciden con las tarifas base detectadas.' }
+  return { categoria: 'REVISAR', observacion: 'Tiene importes históricos compatibles con ambas tarifas.' }
 }
 
 function getTariffConfig(rowsGtoZ: SheetValue[][]): MigrationTariffConfig {
@@ -233,11 +247,10 @@ function getTariffConfig(rowsGtoZ: SheetValue[][]): MigrationTariffConfig {
 }
 
 function isPlausibleMemberRow(identity: SheetValue[]) {
-  const fechaIngreso = asText(identity[0])
-  const rango = asText(identity[1])
   const numero = asText(identity[2])
   const nombre = asText(identity[3])
-  return Boolean(nombre && (fechaIngreso || rango || numero))
+  // La tabla de socios posee número de socio; las filas auxiliares inferiores no.
+  return Boolean(nombre && numero)
 }
 
 export async function analyzeMigration2026(
@@ -262,10 +275,12 @@ export async function analyzeMigration2026(
 
   const gridParams = new URLSearchParams()
   gridParams.set('includeGridData', 'true')
+  gridParams.append('ranges', `'2026'!D1:D${maxRow}`)
   gridParams.append('ranges', `'2026'!I1:T${maxRow}`)
   const gridUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?${gridParams}`
   const gridResponse = await jsonRequest<SpreadsheetGridResponse>(gridUrl, accessToken)
-  const formatRows = gridResponse.sheets?.[0]?.data?.[0]?.rowData ?? []
+  const nameFormatRows = gridResponse.sheets?.[0]?.data?.[0]?.rowData ?? []
+  const formatRows = gridResponse.sheets?.[0]?.data?.[1]?.rowData ?? []
 
   const tariffs = getTariffConfig(rowsGtoZ)
   const colorMap = new Map<string, MigrationColorStat>()
@@ -279,6 +294,8 @@ export async function analyzeMigration2026(
     const nombre = asText(identity[3])
     const fechaIngreso = formatDateCell(identity[0])
     const override = getLegacyMemberOverride2026(nombre)
+    const colorNombre = cellColor(nameFormatRows[index]?.values?.[0])
+    const memberColor = interpretLegacyMemberColor2026(colorNombre)
 
     const monthValues = financial.slice(MONTH_START_OFFSET, MONTH_START_OFFSET + MONTH_COUNT)
     const monthNumbers = monthValues.map(asNumber)
@@ -286,8 +303,21 @@ export async function analyzeMigration2026(
     const mesesConImporte = monthNumbers.filter((value) => value !== null && value > 0).length
     const sumatoriaHoja = asNumber(financial[SUMATORIA_OFFSET])
     const observaciones: string[] = []
-    const category = inferCategory(monthValues, tariffs.aporteSoltero, tariffs.aporteCasado)
-    if (category.observacion) observaciones.push(category.observacion)
+    const inferred = inferCategory(monthValues, tariffs.aporteSoltero, tariffs.aporteCasado)
+    const categoriaPropuesta: CategoriaPropuesta = memberColor?.categoria ?? inferred.categoria
+    const categoriaFuente: CategoriaFuente = memberColor?.categoria ? 'COLOR_NOMBRE' : 'INFERIDA_POR_IMPORTES'
+    const evidence = tariffEvidence(monthValues, tariffs.aporteSoltero, tariffs.aporteCasado)
+
+    if (!memberColor?.categoria && inferred.observacion) observaciones.push(inferred.observacion)
+    if (memberColor?.categoria && evidence.solteroMatches > 0 && evidence.casadoMatches > 0) {
+      observaciones.push(`Condición actual ${memberColor.categoria} tomada del color del nombre. Existen pagos históricos con ambas tarifas; se preservan los importes efectivamente recibidos.`)
+    } else if (memberColor?.categoria === 'CASADO' && evidence.solteroMatches > 0 && evidence.casadoMatches === 0) {
+      observaciones.push('Condición actual CASADO tomada del color del nombre; los cobros históricos visibles corresponden a la tarifa de soltero y se preservan como recibidos.')
+    } else if (memberColor?.categoria === 'SOLTERO' && evidence.casadoMatches > 0 && evidence.solteroMatches === 0) {
+      observaciones.push('Condición actual SOLTERO tomada del color del nombre; los cobros históricos visibles corresponden a la tarifa de casado y se preservan como recibidos.')
+    }
+
+    const estadoPropuesto = override?.estado ?? memberColor?.estado ?? 'ACTIVO'
     if (override?.estado === 'INACTIVO') {
       observaciones.push(`${override.motivo ?? 'Socio inactivo.'} No deben generarse cargos posteriores a la fecha de baja.`)
     }
@@ -313,9 +343,11 @@ export async function analyzeMigration2026(
       rango: asText(identity[1]),
       numero: asText(identity[2]),
       fechaIngreso,
-      estadoPropuesto: override?.estado ?? 'ACTIVO',
+      estadoPropuesto,
       fechaBaja: override?.fechaBaja,
-      categoriaPropuesta: category.categoria,
+      categoriaPropuesta,
+      categoriaFuente,
+      colorNombre,
       aporteIngreso: asNumber(financial[0]),
       membresia: asNumber(financial[1]),
       cobradoMensual,
@@ -327,7 +359,7 @@ export async function analyzeMigration2026(
     })
   }
 
-  const categorias = members.reduce(
+  const countCategories = (items: MigrationMemberPreview[]) => items.reduce(
     (counts, member) => {
       if (member.categoriaPropuesta === 'SOLTERO') counts.soltero += 1
       else if (member.categoriaPropuesta === 'CASADO') counts.casado += 1
@@ -336,9 +368,12 @@ export async function analyzeMigration2026(
     },
     { soltero: 0, casado: 0, revisar: 0 },
   )
+  const categorias = countCategories(members)
+  const activeMembers = members.filter((member) => member.estadoPropuesto === 'ACTIVO')
+  const categoriasActivas = countCategories(activeMembers)
   const estados = {
-    activos: members.filter((member) => member.estadoPropuesto === 'ACTIVO').length,
-    inactivos: members.filter((member) => member.estadoPropuesto === 'INACTIVO').length,
+    activos: activeMembers.length,
+    inactivos: members.length - activeMembers.length,
   }
 
   return {
@@ -357,5 +392,6 @@ export async function analyzeMigration2026(
     ).length,
     estados,
     categorias,
+    categoriasActivas,
   }
 }

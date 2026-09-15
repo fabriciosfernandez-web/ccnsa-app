@@ -1,0 +1,34 @@
+.reglas-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.reglas-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.reglas-inline-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.reglas-inner-form {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid #e3e8ec;
+}
+
+.reglas-inner-form:first-of-type {
+  border-top: 0;
+}
+
+@media (max-width: 980px) {
+  .reglas-grid,
+  .reglas-metrics,
+  .reglas-inline-fields {
+    grid-template-columns: 1fr;
+  }
+}

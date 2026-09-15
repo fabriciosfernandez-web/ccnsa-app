@@ -112,7 +112,7 @@ export function AdminCuotasPage() {
         )
       } else {
         setMessage(
-          `Generación ${periodo}: ${result.creadas} obligación(es) creada(s), ${result.omitidas} omitida(s) por existir previamente, ${money(result.totalGenerado)} generados y ${money(result.creditoAplicado)} cubiertos automáticamente con saldos a favor.`,
+          `Generación ${periodo}: ${result.creadas} obligación(es) creada(s), ${result.exentas} exenta(s), ${result.ajustadas} con importe especial, ${result.omitidas} omitida(s) por existir previamente, ${money(result.totalGenerado)} generados y ${money(result.creditoAplicado)} cubiertos automáticamente con saldos a favor.`,
         )
       }
     } catch (caught) {
@@ -131,7 +131,7 @@ export function AdminCuotasPage() {
         <div>
           <p className="legacy-kicker">Gestión interna</p>
           <h2>Tarifas y generación de cuotas</h2>
-          <p className="muted">Fase 2B de prueba: reglas mensuales por categoría y generación controlada e idempotente. No cargues datos reales todavía.</p>
+          <p className="muted">Fase 2C de prueba: tarifas mensuales, excepciones y cambios históricos de categoría. No cargues datos reales todavía.</p>
         </div>
         <span className="status-badge neutral">Entorno de desarrollo</span>
       </header>

@@ -3,8 +3,10 @@ import {
   reauthenticateWithPopup,
   type User,
 } from 'firebase/auth'
+import { getLegacyMemberOverride2026 } from './legacyMigration2026Overrides'
 
 export type CategoriaPropuesta = 'SOLTERO' | 'CASADO' | 'REVISAR'
+export type EstadoMigracionPropuesto = 'ACTIVO' | 'INACTIVO'
 
 export interface MigrationMemberPreview {
   row: number
@@ -12,6 +14,8 @@ export interface MigrationMemberPreview {
   rango: string
   numero: string
   fechaIngreso: string
+  estadoPropuesto: EstadoMigracionPropuesto
+  fechaBaja?: string
   categoriaPropuesta: CategoriaPropuesta
   aporteIngreso: number | null
   membresia: number | null
@@ -49,6 +53,10 @@ export interface MigrationPreview {
   totalDeuda2026: number
   totalDeuda2025: number
   sumatoriaMismatches: number
+  estados: {
+    activos: number
+    inactivos: number
+  }
   categorias: {
     soltero: number
     casado: number
@@ -224,6 +232,14 @@ function getTariffConfig(rowsGtoZ: SheetValue[][]): MigrationTariffConfig {
   }
 }
 
+function isPlausibleMemberRow(identity: SheetValue[]) {
+  const fechaIngreso = asText(identity[0])
+  const rango = asText(identity[1])
+  const numero = asText(identity[2])
+  const nombre = asText(identity[3])
+  return Boolean(nombre && (fechaIngreso || rango || numero))
+}
+
 export async function analyzeMigration2026(
   user: User,
   spreadsheetInput: string,
@@ -257,9 +273,12 @@ export async function analyzeMigration2026(
 
   for (let index = 1; index < maxRow; index += 1) {
     const identity = rowsAtoD[index] ?? []
+    if (!isPlausibleMemberRow(identity)) continue
+
     const financial = rowsGtoZ[index] ?? []
     const nombre = asText(identity[3])
-    if (!nombre) continue
+    const fechaIngreso = formatDateCell(identity[0])
+    const override = getLegacyMemberOverride2026(nombre)
 
     const monthValues = financial.slice(MONTH_START_OFFSET, MONTH_START_OFFSET + MONTH_COUNT)
     const monthNumbers = monthValues.map(asNumber)
@@ -269,6 +288,9 @@ export async function analyzeMigration2026(
     const observaciones: string[] = []
     const category = inferCategory(monthValues, tariffs.aporteSoltero, tariffs.aporteCasado)
     if (category.observacion) observaciones.push(category.observacion)
+    if (override?.estado === 'INACTIVO') {
+      observaciones.push(`${override.motivo ?? 'Socio inactivo.'} No deben generarse cargos posteriores a la fecha de baja.`)
+    }
 
     if (sumatoriaHoja !== null && Math.abs(sumatoriaHoja - cobradoMensual) > 0.5) {
       observaciones.push(`Sumatoria anual difiere en Gs. ${Math.round(sumatoriaHoja - cobradoMensual).toLocaleString('es-PY')}.`)
@@ -290,7 +312,9 @@ export async function analyzeMigration2026(
       nombre,
       rango: asText(identity[1]),
       numero: asText(identity[2]),
-      fechaIngreso: formatDateCell(identity[0]),
+      fechaIngreso,
+      estadoPropuesto: override?.estado ?? 'ACTIVO',
+      fechaBaja: override?.fechaBaja,
       categoriaPropuesta: category.categoria,
       aporteIngreso: asNumber(financial[0]),
       membresia: asNumber(financial[1]),
@@ -312,6 +336,10 @@ export async function analyzeMigration2026(
     },
     { soltero: 0, casado: 0, revisar: 0 },
   )
+  const estados = {
+    activos: members.filter((member) => member.estadoPropuesto === 'ACTIVO').length,
+    inactivos: members.filter((member) => member.estadoPropuesto === 'INACTIVO').length,
+  }
 
   return {
     spreadsheetId,
@@ -327,6 +355,7 @@ export async function analyzeMigration2026(
     sumatoriaMismatches: members.filter((member) =>
       member.sumatoriaHoja !== null && Math.abs(member.sumatoriaHoja - member.cobradoMensual) > 0.5,
     ).length,
+    estados,
     categorias,
   }
 }

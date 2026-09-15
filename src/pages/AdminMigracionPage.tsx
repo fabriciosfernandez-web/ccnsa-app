@@ -4,6 +4,10 @@ import {
   analyzeMigration2026,
   type MigrationPreview,
 } from '../data/migration2026'
+import {
+  analyzeMigrationSnapshot2026,
+  type MigrationSnapshot2026,
+} from '../data/migrationSnapshot2026'
 import './admin-migracion.css'
 
 const money = (value: number | null) => value === null
@@ -15,11 +19,19 @@ function errorMessage(error: unknown) {
   return 'No fue posible analizar la planilla.'
 }
 
+function snapshotBadge(state: 'LIMPIO' | 'CONCILIADO_CON_AJUSTES' | 'REVISAR') {
+  if (state === 'LIMPIO') return 'active'
+  return 'neutral'
+}
+
 export function AdminMigracionPage() {
   const { user, profile } = useAuth()
   const [preview, setPreview] = useState<MigrationPreview | null>(null)
+  const [snapshot, setSnapshot] = useState<MigrationSnapshot2026 | null>(null)
   const [loading, setLoading] = useState(false)
+  const [snapshotLoading, setSnapshotLoading] = useState(false)
   const [error, setError] = useState('')
+  const [source, setSource] = useState<{ spreadsheet: string; maxRow: number } | null>(null)
 
   async function analyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -33,7 +45,10 @@ export function AdminMigracionPage() {
       setLoading(true)
       setError('')
       setPreview(null)
-      setPreview(await analyzeMigration2026(user, spreadsheet, maxRow))
+      setSnapshot(null)
+      const result = await analyzeMigration2026(user, spreadsheet, maxRow)
+      setPreview(result)
+      setSource({ spreadsheet, maxRow })
     } catch (caught) {
       console.error('Migration preview error', caught)
       setError(errorMessage(caught))
@@ -41,6 +56,24 @@ export function AdminMigracionPage() {
       setLoading(false)
     }
   }
+
+  async function buildSnapshot() {
+    if (!user || !preview || !source || snapshotLoading) return
+    try {
+      setSnapshotLoading(true)
+      setError('')
+      setSnapshot(await analyzeMigrationSnapshot2026(user, source.spreadsheet, preview, source.maxRow))
+    } catch (caught) {
+      console.error('Migration snapshot error', caught)
+      setError(errorMessage(caught))
+    } finally {
+      setSnapshotLoading(false)
+    }
+  }
+
+  const snapshotDifference = snapshot
+    ? snapshot.totals.deudaReconstruida - snapshot.totals.deudaFuente
+    : null
 
   return (
     <section className="page-stack legacy-page-stack migration-page">
@@ -94,15 +127,16 @@ export function AdminMigracionPage() {
         </form>
 
         <article className="panel migration-plan">
-          <p className="legacy-kicker">Objetivo de 3A</p>
-          <h3>Diagnóstico antes de importar</h3>
-          <p className="muted">Primero debemos demostrar que el modelo nuevo puede reconstruir la base actual sin perder información ni interpretar colores de forma arbitraria.</p>
+          <p className="legacy-kicker">Objetivo de 3A/3B</p>
+          <h3>Diagnóstico y reconstrucción antes de importar</h3>
+          <p className="muted">Primero validamos la fuente. Después reconstruimos un snapshot de obligaciones, pagos históricos y exoneraciones sin trasladar al sistema nuevo la lógica obsoleta de colores.</p>
           <ul className="migration-checklist">
             <li>Detectar socios y tarifas base.</li>
             <li>Conciliar cobros mensuales con la sumatoria anual.</li>
-            <li>Proponer SOLTERO/CASADO de forma conservadora.</li>
-            <li>Inventariar colores y celdas vacías sin asignarles significado todavía.</li>
+            <li>Usar los colores solo como adaptador legacy para el mes de cobro.</li>
+            <li>Reconocer el rojo de julio como exoneración por retiro anual.</li>
             <li>Separar deuda 2025 y deuda 2026.</li>
+            <li>Reproducir exactamente la deuda de cada socio antes de habilitar importación.</li>
           </ul>
         </article>
       </div>
@@ -130,7 +164,7 @@ export function AdminMigracionPage() {
               <small>Suma de importes numéricos Enero–Diciembre.</small>
             </article>
             <article className="metric-card legacy-metric-card">
-              <span>Conciliación</span>
+              <span>Conciliación básica</span>
               <strong>{preview.sumatoriaMismatches}</strong>
               <small>Fila(s) donde meses ≠ Sumatoria Anual.</small>
             </article>
@@ -151,9 +185,9 @@ export function AdminMigracionPage() {
             </article>
 
             <article className="panel migration-color-card">
-              <p className="legacy-kicker">Diagnóstico de formato</p>
+              <p className="legacy-kicker">Adaptador legacy</p>
               <h3>Colores detectados en Enero–Diciembre</h3>
-              <p className="muted">Todavía no interpretamos un color como pago, mora o exoneración. Primero validamos la leyenda real de la planilla.</p>
+              <p className="muted">Los colores se conservan únicamente para reconstruir el mes histórico de cobro durante esta migración. No formarán parte del modelo operativo futuro. El rojo se trata como exoneración, no como pago.</p>
               <div className="migration-colors">
                 {preview.colorStats.map((stat) => (
                   <div className="migration-color-row" key={stat.color}>
@@ -174,7 +208,7 @@ export function AdminMigracionPage() {
           <article className="panel migration-table-panel">
             <div className="panel-heading-row">
               <div>
-                <p className="legacy-kicker">Vista previa</p>
+                <p className="legacy-kicker">Vista previa 3A</p>
                 <h3>Mapeo propuesto por socio</h3>
               </div>
               <span className="status-badge neutral">Sin importar</span>
@@ -220,9 +254,120 @@ export function AdminMigracionPage() {
             </div>
           </article>
 
-          <div className="cuotas-info-box migration-next-step">
-            <strong>Siguiente control:</strong> validar la leyenda de colores y revisar las filas marcadas como REVISAR. Solo después construiremos el snapshot de migración y la conciliación contra Firestore.
-          </div>
+          <article className="panel migration-snapshot-launch">
+            <div>
+              <p className="legacy-kicker">Fase 3B</p>
+              <h3>Construir snapshot conciliado</h3>
+              <p className="muted">Lee fórmulas y colores de la misma hoja, reconstruye obligaciones, pagos, exoneraciones y ajustes legacy, y compara el saldo resultante con la Deuda 2026 registrada. Sigue siendo solo lectura.</p>
+            </div>
+            <button className="button primary" type="button" onClick={() => void buildSnapshot()} disabled={snapshotLoading}>
+              {snapshotLoading ? 'Reconstruyendo…' : snapshot ? 'Reconstruir nuevamente' : 'Construir snapshot 3B'}
+            </button>
+          </article>
+
+          {snapshot && (
+            <>
+              <div className="metric-grid legacy-metric-grid migration-metrics migration-snapshot-metrics">
+                <article className="metric-card legacy-metric-card">
+                  <span>Deuda fuente</span>
+                  <strong>{money(snapshot.totals.deudaFuente)}</strong>
+                  <small>Saldo registrado en la planilla.</small>
+                </article>
+                <article className="metric-card legacy-metric-card">
+                  <span>Deuda reconstruida</span>
+                  <strong>{money(snapshot.totals.deudaReconstruida)}</strong>
+                  <small>Diferencia: {money(snapshotDifference)}</small>
+                </article>
+                <article className="metric-card legacy-metric-card">
+                  <span>Estado de filas</span>
+                  <strong>{snapshot.totals.limpios} / {snapshot.totals.conciliadosConAjustes}</strong>
+                  <small>Limpias / conciliadas con ajustes · {snapshot.totals.revisar} para revisar.</small>
+                </article>
+                <article className="metric-card legacy-metric-card">
+                  <span>Exonerado reconstruido</span>
+                  <strong>{money(snapshot.totals.exonerado)}</strong>
+                  <small>Obligaciones EXENTAS; no se registran como pagos.</small>
+                </article>
+              </div>
+
+              <div className="migration-detail-grid">
+                <article className="panel migration-config-card">
+                  <p className="legacy-kicker">Ledger propuesto</p>
+                  <h3>Totales reconstruidos</h3>
+                  <dl className="migration-definition-list">
+                    <div><dt>Cargos normales</dt><dd>{money(snapshot.totals.cargosNormales)}</dd></div>
+                    <div><dt>Pagos elegibles</dt><dd>{money(snapshot.totals.pagosElegibles)}</dd></div>
+                    <div><dt>Ajustes técnicos de cargo</dt><dd>{money(snapshot.totals.ajustesCargo)}</dd></div>
+                    <div><dt>Ajustes técnicos de pago</dt><dd>{money(snapshot.totals.ajustesPago)}</dd></div>
+                  </dl>
+                </article>
+                <article className="panel migration-plan">
+                  <p className="legacy-kicker">Criterio</p>
+                  <h3>Qué significa “ajuste legacy”</h3>
+                  <p className="muted">No es una nueva regla del sistema. Es una marca temporal para los casos donde la planilla demuestra un saldo o cobro, pero no permite asignarlo a un mes o concepto sin inventar datos. Esos casos deben resolverse antes de importar.</p>
+                </article>
+              </div>
+
+              <article className="panel migration-table-panel">
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="legacy-kicker">Conciliación 3B</p>
+                    <h3>Snapshot por socio</h3>
+                  </div>
+                  <span className="status-badge neutral">Sin escribir en Firestore</span>
+                </div>
+                <div className="migration-table-wrap">
+                  <table className="migration-table migration-snapshot-table">
+                    <thead>
+                      <tr>
+                        <th>Socio</th>
+                        <th>Estado</th>
+                        <th>Cargos</th>
+                        <th>Pagos</th>
+                        <th>Exonerado</th>
+                        <th>Deuda hoja</th>
+                        <th>Reconstruida</th>
+                        <th>Diferencia</th>
+                        <th>Observaciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...snapshot.members]
+                        .sort((a, b) => {
+                          const order = { REVISAR: 0, CONCILIADO_CON_AJUSTES: 1, LIMPIO: 2 }
+                          return order[a.estado] - order[b.estado] || a.row - b.row
+                        })
+                        .map((member) => (
+                          <tr key={`snapshot-${member.row}`}>
+                            <td>
+                              <strong>{member.nombre}</strong>
+                              <small>Fila {member.row} · {member.obligaciones.length} obligación(es) · {member.movimientos.length} movimiento(s)</small>
+                            </td>
+                            <td>
+                              <span className={`status-badge ${snapshotBadge(member.estado)}`}>{member.estado.replaceAll('_', ' ')}</span>
+                            </td>
+                            <td>{money(member.totalCargosNormales)}</td>
+                            <td>{money(member.totalPagosElegibles)}</td>
+                            <td>{money(member.totalExonerado)}</td>
+                            <td>{money(member.deudaFuente)}</td>
+                            <td>{money(member.deudaReconstruida)}</td>
+                            <td>{money(member.diferencia)}</td>
+                            <td className="migration-observations">
+                              {member.observaciones.length === 0 ? '—' : member.observaciones.join(' ')}
+                              {member.formulaDeuda2026 && <small className="migration-formula">{member.formulaDeuda2026}</small>}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <div className="cuotas-info-box migration-next-step">
+                <strong>Control previo a importación:</strong> la deuda reconstruida debe coincidir con la fuente y las filas “REVISAR” deben resolverse. Solo después convertiremos el snapshot aprobado en escrituras idempotentes a Firestore.
+              </div>
+            </>
+          )}
         </>
       )}
     </section>

@@ -2,6 +2,8 @@ export interface LegacyMemberOverride2026 {
   estado: 'ACTIVO' | 'INACTIVO'
   fechaBaja?: string
   motivo?: string
+  exoneracionTotal?: boolean
+  motivoExoneracion?: string
 }
 
 function normalizeName(value: string) {
@@ -18,6 +20,11 @@ const MEMBER_OVERRIDES_2026: Record<string, LegacyMemberOverride2026> = {
     estado: 'INACTIVO',
     fechaBaja: '2026-06-30',
     motivo: 'Renuncia presentada y aceptada el 30/06/2026.',
+  },
+  [normalizeName('Carlo Camelli')]: {
+    estado: 'ACTIVO',
+    exoneracionTotal: true,
+    motivoExoneracion: 'Exoneración total de cargos por condición religiosa.',
   },
 }
 

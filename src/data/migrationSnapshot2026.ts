@@ -1,8 +1,15 @@
-import type {
-  MigrationMemberPreview,
-  MigrationPreview,
-  MigrationTariffConfig,
+import {
+  GoogleAuthProvider,
+  reauthenticateWithPopup,
+  type User,
+} from 'firebase/auth'
+import {
+  extractSpreadsheetId,
+  type MigrationMemberPreview,
+  type MigrationPreview,
+  type MigrationTariffConfig,
 } from './migration2026'
+import { interpretLegacyColor2026, type LegacyColorMeaning } from './legacyMigration2026Colors'
 
 export type SnapshotObligationKind = 'CUOTA_MENSUAL' | 'MEMBRESIA' | 'APORTE_INGRESO' | 'AJUSTE_LEGACY'
 export type SnapshotObligationState = 'PENDIENTE' | 'PARCIAL' | 'PAGADA' | 'EXENTA' | 'REVISAR'
@@ -71,6 +78,61 @@ export interface MigrationSnapshot2026 {
   }
 }
 
+type SheetValue = string | number | boolean | null | undefined
+
+interface ValuesRange {
+  values?: SheetValue[][]
+}
+
+interface BatchGetResponse {
+  valueRanges?: ValuesRange[]
+}
+
+interface RgbColor {
+  red?: number
+  green?: number
+  blue?: number
+}
+
+interface CellData {
+  effectiveFormat?: {
+    backgroundColor?: RgbColor
+    backgroundColorStyle?: {
+      rgbColor?: RgbColor
+      themeColor?: string
+    }
+  }
+}
+
+interface SpreadsheetGridResponse {
+  sheets?: Array<{
+    data?: Array<{
+      rowData?: Array<{ values?: CellData[] }>
+    }>
+  }>
+}
+
+interface LegacyMonthPreview {
+  month: number
+  periodo: string
+  amount: number | null
+  color: string
+  legacyMeaning: LegacyColorMeaning
+}
+
+interface LegacyAdjustmentPreview {
+  month: number
+  amount: number
+  cell: string
+}
+
+interface LegacyMemberInput {
+  member: MigrationMemberPreview
+  formula: string
+  meses: LegacyMonthPreview[]
+  ajustesExcluidos: LegacyAdjustmentPreview[]
+}
+
 const EPSILON = 0.5
 const MONTH_COLUMNS = ['I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'] as const
 const MONTH_LABELS = [
@@ -80,6 +142,58 @@ const MONTH_LABELS = [
 
 function monthPeriod(month: number) {
   return `2026-${String(month).padStart(2, '0')}`
+}
+
+function asNumber(value: SheetValue): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return null
+  const normalized = value.replace(/[^0-9,-]/g, '').replace(/\./g, '').replace(',', '.')
+  if (!normalized) return null
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function colorComponent(value?: number) {
+  return Math.max(0, Math.min(255, Math.round((value ?? 0) * 255)))
+}
+
+function rgbToHex(rgb?: RgbColor) {
+  if (!rgb) return 'SIN_COLOR'
+  const parts = [rgb.red, rgb.green, rgb.blue].map((value) =>
+    colorComponent(value).toString(16).padStart(2, '0'),
+  )
+  return `#${parts.join('').toUpperCase()}`
+}
+
+function cellColor(cell?: CellData) {
+  const style = cell?.effectiveFormat?.backgroundColorStyle
+  if (style?.rgbColor) return rgbToHex(style.rgbColor)
+  if (style?.themeColor) return `TEMA:${style.themeColor}`
+  return rgbToHex(cell?.effectiveFormat?.backgroundColor)
+}
+
+async function jsonRequest<T>(url: string, accessToken: string): Promise<T> {
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+  if (!response.ok) {
+    let detail = ''
+    try {
+      const payload = await response.json() as { error?: { message?: string } }
+      detail = payload.error?.message ?? ''
+    } catch {
+      // HTTP fallback below.
+    }
+    throw new Error(detail || `Google Sheets API respondió ${response.status}.`)
+  }
+  return response.json() as Promise<T>
+}
+
+async function getSheetsAccessToken(user: User) {
+  const provider = new GoogleAuthProvider()
+  provider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly')
+  const result = await reauthenticateWithPopup(user, provider)
+  const credential = GoogleAuthProvider.credentialFromResult(result)
+  if (!credential?.accessToken) throw new Error('Google no devolvió un token de lectura de Sheets.')
+  return credential.accessToken
 }
 
 function formulaMonthlyRule(formula: string, tariffs: MigrationTariffConfig) {
@@ -106,18 +220,6 @@ function joinMonth2026(member: MigrationMemberPreview) {
   return month >= 1 && month <= 12 ? month : 1
 }
 
-function excludedMonths(member: MigrationMemberPreview) {
-  return new Set(member.ajustesExcluidos.map((item) => item.month))
-}
-
-function findMonth(member: MigrationMemberPreview, month: number) {
-  return member.meses.find((item) => item.month === month)
-}
-
-function isRedExemption(member: MigrationMemberPreview, month: number) {
-  return findMonth(member, month)?.legacyMeaning.kind === 'EXONERACION'
-}
-
 function obligationState(importe: number, paid: number, exenta = false): SnapshotObligationState {
   if (exenta) return 'EXENTA'
   if (paid <= EPSILON) return 'PENDIENTE'
@@ -125,22 +227,46 @@ function obligationState(importe: number, paid: number, exenta = false): Snapsho
   return 'PARCIAL'
 }
 
-function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationTariffConfig): MigrationMemberSnapshot2026 {
-  const formula = member.deuda2026Formula || ''
+function extractFormulaAdjustments(formula: string, row: number, monthValues: SheetValue[]): LegacyAdjustmentPreview[] {
+  const normalized = formula.replace(/\s+/g, '').toUpperCase()
+  const marker = `-U${row}`
+  const markerIndex = normalized.indexOf(marker)
+  if (markerIndex < 0) return []
+  const tail = normalized.slice(markerIndex + marker.length)
+  const result: LegacyAdjustmentPreview[] = []
+  const regex = /\+([I-T])(\d+)/g
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(tail)) !== null) {
+    if (Number(match[2]) !== row) continue
+    const month = MONTH_COLUMNS.indexOf(match[1] as typeof MONTH_COLUMNS[number]) + 1
+    if (month <= 0) continue
+    result.push({
+      month,
+      amount: asNumber(monthValues[month - 1]) ?? 0,
+      cell: `${match[1]}${row}`,
+    })
+  }
+  return result
+}
+
+function buildMemberSnapshot(input: LegacyMemberInput, tariffs: MigrationTariffConfig): MigrationMemberSnapshot2026 {
+  const { member, formula, meses, ajustesExcluidos } = input
   const deudaFuente = member.deuda2026 ?? 0
   const cobradoHoja = member.sumatoriaHoja ?? 0
-  const ajustesExcluidos = member.totalAjustesExcluidos
-  const cobrosElegibles = Math.max(0, cobradoHoja - ajustesExcluidos)
+  const totalAjustesExcluidos = ajustesExcluidos.reduce((sum, item) => sum + item.amount, 0)
+  const cobrosElegibles = Math.max(0, cobradoHoja - totalAjustesExcluidos)
   const cargosObjetivo = Math.max(0, deudaFuente + cobrosElegibles)
   const obligaciones: MigrationSnapshotObligation[] = []
   const movimientos: MigrationSnapshotMovement[] = []
   const observaciones: string[] = []
-  const excluded = excludedMonths(member)
+  const excludedMonths = new Set(ajustesExcluidos.map((item) => item.month))
   const monthlyRule = formulaMonthlyRule(formula, tariffs)
+  let unresolvedStructure = false
+  let reviewMovementCount = 0
 
   let startMonth = joinMonth2026(member)
-  if (member.ajustesExcluidos.length > 0) {
-    startMonth = Math.max(startMonth, Math.max(...member.ajustesExcluidos.map((item) => item.month)) + 1)
+  if (ajustesExcluidos.length > 0) {
+    startMonth = Math.max(startMonth, Math.max(...ajustesExcluidos.map((item) => item.month)) + 1)
   }
 
   const monthlyObligationByMonth = new Map<number, MigrationSnapshotObligation>()
@@ -148,7 +274,8 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
     let payableRemaining = monthlyRule.count
     let month = startMonth
     while (payableRemaining > 0 && month <= 12) {
-      const exenta = isRedExemption(member, month)
+      const monthPreview = meses[month - 1]
+      const exenta = monthPreview?.legacyMeaning.kind === 'EXONERACION'
       const key = `row-${member.row}-cuota-${monthPeriod(month)}`
       const obligation: MigrationSnapshotObligation = {
         key,
@@ -158,7 +285,7 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
         importe: monthlyRule.rate,
         estado: exenta ? 'EXENTA' : 'PENDIENTE',
         sourceCell: `${MONTH_COLUMNS[month - 1]}${member.row}`,
-        sourceNote: `Tarifa inferida de ${monthlyRule.reference} en la fórmula de deuda.`,
+        sourceNote: `Tarifa inferida de ${monthlyRule.reference} en la fórmula de Deuda 2026.`,
       }
       obligaciones.push(obligation)
       monthlyObligationByMonth.set(month, obligation)
@@ -172,19 +299,23 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
           confidence: 'ALTA',
           note: month === 7
             ? 'Exoneración por asistencia al retiro de silencio anual 2026.'
-            : 'Exoneración indicada por color rojo; revisar motivo.',
+            : 'Exoneración roja fuera de julio; requiere revisión.',
         })
+        if (month !== 7) {
+          unresolvedStructure = true
+          observaciones.push(`Exoneración roja detectada fuera de julio (${obligation.periodo}).`)
+        }
       } else {
         payableRemaining -= 1
       }
       month += 1
     }
     if (payableRemaining > 0) {
-      observaciones.push(`La fórmula exige ${monthlyRule.count} cuota(s) pagables y el calendario 2026 no alcanzó para distribuir ${payableRemaining}.`)
+      unresolvedStructure = true
+      observaciones.push(`No fue posible distribuir ${payableRemaining} cuota(s) pagable(s) dentro de 2026.`)
     }
 
-    // Si existe una exoneración roja fuera del horizonte generado, conservarla como obligación EXENTA.
-    for (const monthPreview of member.meses) {
+    for (const monthPreview of meses) {
       if (monthPreview.legacyMeaning.kind !== 'EXONERACION' || monthlyObligationByMonth.has(monthPreview.month)) continue
       const key = `row-${member.row}-cuota-${monthPreview.periodo}`
       const obligation: MigrationSnapshotObligation = {
@@ -195,65 +326,66 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
         importe: monthlyRule.rate,
         estado: 'EXENTA',
         sourceCell: `${MONTH_COLUMNS[monthPreview.month - 1]}${member.row}`,
-        sourceNote: 'Exoneración legacy conservada fuera del tramo pagable inferido.',
+        sourceNote: 'Exoneración legacy conservada aunque quede fuera del tramo pagable inferido.',
       }
       obligaciones.push(obligation)
       monthlyObligationByMonth.set(monthPreview.month, obligation)
       movimientos.push({
         kind: 'EXONERACION',
         importe: monthlyRule.rate,
-        periodoObligacion: monthPreview.periodo,
+        periodoObligacion: obligation.periodo,
         targetKey: key,
         sourceCell: obligation.sourceCell,
         confidence: 'ALTA',
         note: monthPreview.month === 7
           ? 'Exoneración por asistencia al retiro de silencio anual 2026.'
-          : 'Exoneración indicada por color rojo; revisar motivo.',
+          : 'Exoneración roja fuera de julio; requiere revisión.',
       })
+      if (monthPreview.month !== 7) unresolvedStructure = true
     }
   } else if (formula && formula !== '0' && cargosObjetivo > EPSILON) {
-    observaciones.push('No se pudo inferir una regla mensual Y3/Z3/Y4 desde la fórmula de deuda.')
+    unresolvedStructure = true
+    observaciones.push('No se pudo inferir la tarifa y cantidad de cuotas desde la fórmula legacy.')
   }
 
   if (includesFormulaReference(formula, 'Y6')) {
-    const amount = tariffs.membresia ?? 35000
     obligaciones.push({
       key: `row-${member.row}-membresia-2026`,
       kind: 'MEMBRESIA',
       concepto: 'Membresía 2026',
       periodo: '2026-ANUAL',
-      importe: amount,
+      importe: tariffs.membresia ?? 35000,
       estado: 'PENDIENTE',
       sourceCell: `H${member.row}`,
     })
   }
 
   if (includesFormulaReference(formula, 'Z6')) {
-    const amount = tariffs.ingreso ?? 40000
     obligaciones.push({
       key: `row-${member.row}-ingreso`,
       kind: 'APORTE_INGRESO',
       concepto: 'Aporte de ingreso',
       periodo: member.fechaIngreso.slice(0, 7) || '2026',
-      importe: amount,
+      importe: tariffs.ingreso ?? 40000,
       estado: 'PENDIENTE',
       sourceCell: `G${member.row}`,
     })
   }
 
-  // Aplicaciones mensuales: la columna identifica la obligación y el color el mes de cobro.
-  for (const monthPreview of member.meses) {
-    if ((monthPreview.amount ?? 0) <= EPSILON) continue
+  for (const monthPreview of meses) {
+    const amount = monthPreview.amount ?? 0
+    if (amount <= EPSILON) continue
     const cell = `${MONTH_COLUMNS[monthPreview.month - 1]}${member.row}`
-    if (excluded.has(monthPreview.month)) {
+
+    if (excludedMonths.has(monthPreview.month)) {
       movimientos.push({
         kind: 'EXCLUIDO',
-        importe: monthPreview.amount ?? 0,
+        importe: amount,
         periodoObligacion: monthPreview.periodo,
         periodoCobro: monthPreview.legacyMeaning.kind === 'PAGO' ? monthPreview.legacyMeaning.periodoCobro : undefined,
         sourceCell: cell,
         confidence: 'ALTA',
-        note: 'La propia fórmula de Deuda 2026 suma nuevamente esta celda; no forma parte del saldo exigible reconstruido.',
+        note: 'La fórmula de deuda vuelve a sumar esta celda; el importe queda fuera del saldo exigible reconstruido.',
       })
       continue
     }
@@ -263,16 +395,17 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
       if (!obligation || obligation.estado === 'EXENTA') {
         movimientos.push({
           kind: 'AJUSTE_PAGO_LEGACY',
-          importe: monthPreview.amount ?? 0,
+          importe: amount,
           periodoObligacion: monthPreview.periodo,
           periodoCobro: monthPreview.legacyMeaning.periodoCobro,
           sourceCell: cell,
           confidence: monthPreview.legacyMeaning.confidence,
-          note: 'Cobro coloreado sin obligación mensual normal compatible; requiere conciliación.',
+          note: 'Cobro coloreado sin obligación mensual normal compatible.',
         })
+        reviewMovementCount += 1
         continue
       }
-      const applied = Math.min(obligation.importe, monthPreview.amount ?? 0)
+      const applied = Math.min(obligation.importe, amount)
       movimientos.push({
         kind: 'PAGO',
         importe: applied,
@@ -281,24 +414,44 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
         targetKey: obligation.key,
         sourceCell: cell,
         confidence: monthPreview.legacyMeaning.confidence,
-        note: 'Pago histórico: mes de obligación por columna y mes de cobro por color.',
+        note: 'La columna identifica la cuota y el color identifica el mes de cobro.',
       })
       obligation.estado = obligationState(obligation.importe, applied)
-      if ((monthPreview.amount ?? 0) > applied + EPSILON) {
+      if (amount > applied + EPSILON) {
         movimientos.push({
           kind: 'AJUSTE_PAGO_LEGACY',
-          importe: (monthPreview.amount ?? 0) - applied,
+          importe: amount - applied,
           periodoObligacion: obligation.periodo,
           periodoCobro: monthPreview.legacyMeaning.periodoCobro,
           sourceCell: cell,
           confidence: 'BAJA',
-          note: 'El valor de la celda excede el importe nominal de la obligación inferida.',
+          note: 'El importe de la celda excede la obligación nominal inferida.',
         })
+        reviewMovementCount += 1
       }
+    } else if (monthPreview.legacyMeaning.kind === 'DESCONOCIDO') {
+      movimientos.push({
+        kind: 'AJUSTE_PAGO_LEGACY',
+        importe: amount,
+        periodoObligacion: monthPreview.periodo,
+        sourceCell: cell,
+        confidence: 'BAJA',
+        note: `Importe con color no interpretado (${monthPreview.color}).`,
+      })
+      reviewMovementCount += 1
+    } else {
+      movimientos.push({
+        kind: 'AJUSTE_PAGO_LEGACY',
+        importe: amount,
+        periodoObligacion: monthPreview.periodo,
+        sourceCell: cell,
+        confidence: 'BAJA',
+        note: 'Celda roja de exoneración contiene además un importe; revisar manualmente.',
+      })
+      reviewMovementCount += 1
     }
   }
 
-  // Membresía y aporte de ingreso están pagados en columnas propias, pero la hoja no conserva su mes exacto de cobro.
   const directMappings: Array<{ kind: SnapshotObligationKind; amount: number | null; cell: string }> = [
     { kind: 'MEMBRESIA', amount: member.membresia, cell: `H${member.row}` },
     { kind: 'APORTE_INGRESO', amount: member.aporteIngreso, cell: `G${member.row}` },
@@ -314,7 +467,7 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
       targetKey: obligation.key,
       sourceCell: mapping.cell,
       confidence: 'MEDIA',
-      note: 'Pago confirmado por importe en la columna legacy; la fuente no conserva el mes exacto de cobro.',
+      note: 'Pago confirmado por la columna legacy; no se conserva el mes exacto de cobro.',
     })
     obligation.estado = obligationState(obligation.importe, applied)
     if ((mapping.amount ?? 0) > applied + EPSILON) {
@@ -325,6 +478,7 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
         confidence: 'BAJA',
         note: 'El importe legacy excede el cargo nominal inferido.',
       })
+      reviewMovementCount += 1
     }
   }
 
@@ -342,28 +496,30 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
       importe: ajusteCargoLegacy,
       estado: 'REVISAR',
       sourceCell: `V${member.row}`,
-      sourceNote: 'Completa el total exigible implícito en la fórmula legacy sin inventar meses o conceptos.',
+      sourceNote: 'Completa el total exigible implícito en la fórmula sin inventar meses o conceptos.',
     })
-    observaciones.push(`Se requiere un ajuste técnico de cargo de Gs. ${Math.round(ajusteCargoLegacy).toLocaleString('es-PY')}.`)
+    observaciones.push(`Ajuste técnico de cargo: Gs. ${Math.round(ajusteCargoLegacy).toLocaleString('es-PY')}.`)
   } else if (ajusteCargoLegacy < 0) {
-    observaciones.push(`Las obligaciones inferidas exceden el total exigible legacy en Gs. ${Math.round(Math.abs(ajusteCargoLegacy)).toLocaleString('es-PY')}.`)
+    unresolvedStructure = true
+    observaciones.push(`Los cargos inferidos exceden el exigible legacy en Gs. ${Math.round(Math.abs(ajusteCargoLegacy)).toLocaleString('es-PY')}.`)
   }
 
-  const structuredPayments = movimientos
-    .filter((item) => item.kind === 'PAGO')
+  const recognizedReceipts = movimientos
+    .filter((item) => item.kind === 'PAGO' || item.kind === 'AJUSTE_PAGO_LEGACY')
     .reduce((sum, item) => sum + item.importe, 0)
-  let ajustePagoLegacy = cobrosElegibles - structuredPayments
+  let ajustePagoLegacy = cobrosElegibles - recognizedReceipts
   if (Math.abs(ajustePagoLegacy) <= EPSILON) ajustePagoLegacy = 0
   if (ajustePagoLegacy > 0) {
     movimientos.push({
       kind: 'AJUSTE_PAGO_LEGACY',
       importe: ajustePagoLegacy,
       confidence: 'BAJA',
-      note: 'Cobro elegible contenido en la sumatoria legacy que no pudo asignarse de forma determinística a un concepto sin inventar información.',
+      note: 'Cobro incluido en la sumatoria legacy que no puede asignarse a un concepto sin inventar información.',
     })
-    observaciones.push(`Quedan Gs. ${Math.round(ajustePagoLegacy).toLocaleString('es-PY')} de cobros legacy sin asignación determinística.`)
+    observaciones.push(`Cobro legacy sin asignación determinística: Gs. ${Math.round(ajustePagoLegacy).toLocaleString('es-PY')}.`)
   } else if (ajustePagoLegacy < 0) {
-    observaciones.push(`Los pagos estructurados exceden los cobros elegibles legacy en Gs. ${Math.round(Math.abs(ajustePagoLegacy)).toLocaleString('es-PY')}.`)
+    unresolvedStructure = true
+    observaciones.push(`Los cobros identificados exceden los cobros elegibles en Gs. ${Math.round(Math.abs(ajustePagoLegacy)).toLocaleString('es-PY')}.`)
   }
 
   const totalCargosNormales = obligaciones
@@ -377,16 +533,25 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
     .reduce((sum, item) => sum + item.importe, 0)
   const deudaReconstruida = totalCargosNormales - totalPagosElegibles
   const diferencia = deudaReconstruida - deudaFuente
-  const unknownColorCount = member.meses.filter((item) =>
+  const unknownColorCount = meses.filter((item) =>
     (item.amount ?? 0) > EPSILON && item.legacyMeaning.kind === 'DESCONOCIDO',
   ).length
 
-  if (unknownColorCount > 0) observaciones.push(`${unknownColorCount} celda(s) con importe tienen color legacy no interpretado.`)
-  if (Math.abs(diferencia) > EPSILON) observaciones.push(`La deuda reconstruida difiere de la fuente en Gs. ${Math.round(diferencia).toLocaleString('es-PY')}.`)
+  if (unknownColorCount > 0) observaciones.push(`${unknownColorCount} celda(s) con importe tienen color no interpretado.`)
+  if (Math.abs(diferencia) > EPSILON) observaciones.push(`Diferencia final: Gs. ${Math.round(diferencia).toLocaleString('es-PY')}.`)
+  if (ajustesExcluidos.length > 0) {
+    observaciones.push(`${ajustesExcluidos.length} cobro(s) fueron excluidos por la propia fórmula de deuda (${ajustesExcluidos.map((item) => item.cell).join(', ')}).`)
+  }
 
-  const hasNegativeAdjustment = ajusteCargoLegacy < -EPSILON || ajustePagoLegacy < -EPSILON
-  const hasUnresolved = unknownColorCount > 0 || hasNegativeAdjustment || Math.abs(diferencia) > EPSILON
-  const hasTechnicalAdjustments = ajusteCargoLegacy > EPSILON || ajustePagoLegacy > EPSILON
+  const hasUnresolved = unresolvedStructure
+    || unknownColorCount > 0
+    || reviewMovementCount > 0
+    || ajusteCargoLegacy < -EPSILON
+    || ajustePagoLegacy < -EPSILON
+    || Math.abs(diferencia) > EPSILON
+  const hasTechnicalAdjustments = ajusteCargoLegacy > EPSILON
+    || ajustePagoLegacy > EPSILON
+    || ajustesExcluidos.length > 0
   const estado: MigrationMemberSnapshot2026['estado'] = hasUnresolved
     ? 'REVISAR'
     : hasTechnicalAdjustments
@@ -400,7 +565,7 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
     formulaDeuda2026: formula,
     deudaFuente,
     cobradoHoja,
-    ajustesExcluidos,
+    ajustesExcluidos: totalAjustesExcluidos,
     cobrosElegibles,
     cargosObjetivo,
     obligaciones,
@@ -418,8 +583,64 @@ function buildMemberSnapshot(member: MigrationMemberPreview, tariffs: MigrationT
   }
 }
 
-export function buildMigrationSnapshot2026(preview: MigrationPreview): MigrationSnapshot2026 {
-  const members = preview.members.map((member) => buildMemberSnapshot(member, preview.tariffs))
+export async function analyzeMigrationSnapshot2026(
+  user: User,
+  spreadsheetInput: string,
+  preview: MigrationPreview,
+  scannedToRow = 60,
+): Promise<MigrationSnapshot2026> {
+  const spreadsheetId = extractSpreadsheetId(spreadsheetInput)
+  const maxRow = Math.max(10, Math.min(500, Math.floor(scannedToRow)))
+  const accessToken = await getSheetsAccessToken(user)
+
+  const valuesParams = new URLSearchParams()
+  valuesParams.append('ranges', `'2026'!G1:W${maxRow}`)
+  valuesParams.set('majorDimension', 'ROWS')
+  valuesParams.set('valueRenderOption', 'UNFORMATTED_VALUE')
+  const valuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${valuesParams}`
+  const valuesResponse = await jsonRequest<BatchGetResponse>(valuesUrl, accessToken)
+  const financialRows = valuesResponse.valueRanges?.[0]?.values ?? []
+
+  const formulaParams = new URLSearchParams()
+  formulaParams.append('ranges', `'2026'!V1:V${maxRow}`)
+  formulaParams.set('majorDimension', 'ROWS')
+  formulaParams.set('valueRenderOption', 'FORMULA')
+  const formulaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${formulaParams}`
+  const formulaResponse = await jsonRequest<BatchGetResponse>(formulaUrl, accessToken)
+  const formulaRows = formulaResponse.valueRanges?.[0]?.values ?? []
+
+  const gridParams = new URLSearchParams()
+  gridParams.set('includeGridData', 'true')
+  gridParams.append('ranges', `'2026'!I1:T${maxRow}`)
+  const gridUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?${gridParams}`
+  const gridResponse = await jsonRequest<SpreadsheetGridResponse>(gridUrl, accessToken)
+  const formatRows = gridResponse.sheets?.[0]?.data?.[0]?.rowData ?? []
+
+  const inputs: LegacyMemberInput[] = preview.members.map((member) => {
+    const rowIndex = member.row - 1
+    const financial = financialRows[rowIndex] ?? []
+    const monthValues = financial.slice(2, 14)
+    const formatValues = formatRows[rowIndex]?.values ?? []
+    const meses = Array.from({ length: 12 }, (_, index): LegacyMonthPreview => {
+      const color = cellColor(formatValues[index])
+      return {
+        month: index + 1,
+        periodo: monthPeriod(index + 1),
+        amount: asNumber(monthValues[index]),
+        color,
+        legacyMeaning: interpretLegacyColor2026(color),
+      }
+    })
+    const formula = String(formulaRows[rowIndex]?.[0] ?? '')
+    return {
+      member,
+      formula,
+      meses,
+      ajustesExcluidos: extractFormulaAdjustments(formula, member.row, monthValues),
+    }
+  })
+
+  const members = inputs.map((input) => buildMemberSnapshot(input, preview.tariffs))
   return {
     members,
     totals: {

@@ -76,7 +76,7 @@ export function AdminMigracionPage() {
   }
 
   const snapshotDifference = snapshot
-    ? snapshot.totals.deudaReconstruida - snapshot.totals.deudaFuente
+    ? snapshot.totals.deudaReconstruida - snapshot.totals.deudaObjetivoMigracion
     : null
   const basicMismatches = preview
     ? preview.members.filter((member) =>
@@ -141,12 +141,12 @@ export function AdminMigracionPage() {
           <h3>Diagnóstico y reconstrucción antes de importar</h3>
           <p className="muted">Primero validamos la fuente. Después reconstruimos un snapshot de obligaciones, pagos históricos y exoneraciones sin trasladar al sistema nuevo la lógica obsoleta de colores.</p>
           <ul className="migration-checklist">
-            <li>Detectar socios y tarifas base.</li>
-            <li>Conciliar cuotas, membresía y aporte de ingreso contra la sumatoria anual.</li>
-            <li>Usar los colores solo como adaptador legacy para el mes de cobro.</li>
+            <li>Tomar verde/amarillo del nombre como condición actual CASADO/SOLTERO.</li>
+            <li>Preservar los importes mensuales tal como fueron efectivamente recibidos, aunque exista un cambio histórico de condición.</li>
+            <li>Usar los colores de Enero–Diciembre solo como adaptador legacy para el mes de cobro.</li>
             <li>Reconocer el rojo de julio como exoneración por retiro anual.</li>
-            <li>Separar deuda 2025 y deuda 2026.</li>
-            <li>Reproducir exactamente la deuda de cada socio antes de habilitar importación.</li>
+            <li>Respetar bajas confirmadas y no generar cargos posteriores.</li>
+            <li>Reproducir exactamente la deuda objetivo antes de habilitar importación.</li>
           </ul>
         </article>
       </div>
@@ -159,19 +159,19 @@ export function AdminMigracionPage() {
 
           <div className="metric-grid legacy-metric-grid migration-metrics">
             <article className="metric-card legacy-metric-card">
-              <span>Socios detectados</span>
+              <span>Registros históricos</span>
               <strong>{preview.members.length}</strong>
-              <small>Filas con nombre dentro del rango analizado.</small>
+              <small>{preview.estados.activos} activos · {preview.estados.inactivos} inactivo(s).</small>
             </article>
             <article className="metric-card legacy-metric-card">
-              <span>Categoría propuesta</span>
-              <strong>{preview.categorias.soltero} / {preview.categorias.casado}</strong>
-              <small>Soltero / Casado · {preview.categorias.revisar} para revisar.</small>
+              <span>Condición de activos</span>
+              <strong>{preview.categoriasActivas.soltero} / {preview.categoriasActivas.casado}</strong>
+              <small>Soltero / Casado · {preview.categoriasActivas.revisar} para revisar.</small>
             </article>
             <article className="metric-card legacy-metric-card">
               <span>Cobros mensuales 2026</span>
               <strong>{money(preview.totalCobradoMensual)}</strong>
-              <small>Solo cuotas de Enero–Diciembre; membresía e ingreso se muestran aparte.</small>
+              <small>Importes históricos preservados; no se normalizan por condición actual.</small>
             </article>
             <article className="metric-card legacy-metric-card">
               <span>Conciliación básica</span>
@@ -197,7 +197,7 @@ export function AdminMigracionPage() {
             <article className="panel migration-color-card">
               <p className="legacy-kicker">Adaptador legacy</p>
               <h3>Colores detectados en Enero–Diciembre</h3>
-              <p className="muted">Los colores se conservan únicamente para reconstruir el mes histórico de cobro durante esta migración. No formarán parte del modelo operativo futuro. El rojo se trata como exoneración, no como pago.</p>
+              <p className="muted">Los colores mensuales se conservan únicamente para reconstruir el mes histórico de cobro durante esta migración. No formarán parte del modelo operativo futuro. El rojo se trata como exoneración, no como pago.</p>
               <div className="migration-colors">
                 {preview.colorStats.map((stat) => (
                   <div className="migration-color-row" key={stat.color}>
@@ -229,7 +229,8 @@ export function AdminMigracionPage() {
                   <tr>
                     <th>Fila</th>
                     <th>Socio</th>
-                    <th>Categoría propuesta</th>
+                    <th>Estado</th>
+                    <th>Condición actual</th>
                     <th>Cobrado meses</th>
                     <th>Sumatoria hoja</th>
                     <th>Deuda 2026</th>
@@ -248,9 +249,16 @@ export function AdminMigracionPage() {
                           <small>{member.rango || 'Sin rango'} · {member.mesesConImporte} mes(es) con importe</small>
                         </td>
                         <td>
+                          <span className={`status-badge ${member.estadoPropuesto === 'ACTIVO' ? 'active' : 'neutral'}`}>
+                            {member.estadoPropuesto}
+                          </span>
+                          {member.fechaBaja && <small>Baja: {member.fechaBaja}</small>}
+                        </td>
+                        <td>
                           <span className={`status-badge ${member.categoriaPropuesta === 'REVISAR' ? 'neutral' : 'active'}`}>
                             {member.categoriaPropuesta}
                           </span>
+                          <small>{member.categoriaFuente === 'COLOR_NOMBRE' ? 'Color del nombre' : 'Inferida por importes'}</small>
                         </td>
                         <td>{money(member.cobradoMensual)}</td>
                         <td>{money(member.sumatoriaHoja)}</td>
@@ -271,7 +279,7 @@ export function AdminMigracionPage() {
             <div>
               <p className="legacy-kicker">Fase 3B</p>
               <h3>Construir snapshot conciliado</h3>
-              <p className="muted">Lee fórmulas y colores de la misma hoja, reconstruye obligaciones, pagos, exoneraciones y ajustes legacy, y compara el saldo resultante con la Deuda 2026 registrada. Sigue siendo solo lectura.</p>
+              <p className="muted">Reconstruye obligaciones, pagos y exoneraciones. Si una cuota pagada coincide con una tarifa histórica completa de Gs. 37.000 o Gs. 25.000, conserva ese importe aunque la condición actual del socio sea distinta. Las bajas confirmadas cortan cargos posteriores.</p>
             </div>
             <button className="button primary" type="button" onClick={() => void buildSnapshot()} disabled={snapshotLoading}>
               {snapshotLoading ? 'Reconstruyendo…' : snapshot ? 'Reconstruir nuevamente' : 'Construir snapshot 3B'}
@@ -282,24 +290,24 @@ export function AdminMigracionPage() {
             <>
               <div className="metric-grid legacy-metric-grid migration-metrics migration-snapshot-metrics">
                 <article className="metric-card legacy-metric-card">
-                  <span>Deuda fuente</span>
+                  <span>Deuda fuente original</span>
                   <strong>{money(snapshot.totals.deudaFuente)}</strong>
-                  <small>Saldo registrado en la planilla.</small>
+                  <small>Saldo tal como figura actualmente en la planilla.</small>
+                </article>
+                <article className="metric-card legacy-metric-card">
+                  <span>Deuda objetivo migración</span>
+                  <strong>{money(snapshot.totals.deudaObjetivoMigracion)}</strong>
+                  <small>Ajustes validados por baja: −{money(snapshot.totals.ajustesValidadosBaja)}</small>
                 </article>
                 <article className="metric-card legacy-metric-card">
                   <span>Deuda reconstruida</span>
                   <strong>{money(snapshot.totals.deudaReconstruida)}</strong>
-                  <small>Diferencia: {money(snapshotDifference)}</small>
+                  <small>Diferencia contra objetivo: {money(snapshotDifference)}</small>
                 </article>
                 <article className="metric-card legacy-metric-card">
                   <span>Estado de filas</span>
                   <strong>{snapshot.totals.limpios} / {snapshot.totals.conciliadosConAjustes}</strong>
                   <small>Limpias / conciliadas con ajustes · {snapshot.totals.revisar} para revisar.</small>
-                </article>
-                <article className="metric-card legacy-metric-card">
-                  <span>Exonerado reconstruido</span>
-                  <strong>{money(snapshot.totals.exonerado)}</strong>
-                  <small>Obligaciones EXENTAS; no se registran como pagos.</small>
                 </article>
               </div>
 
@@ -310,6 +318,8 @@ export function AdminMigracionPage() {
                   <dl className="migration-definition-list">
                     <div><dt>Cargos normales</dt><dd>{money(snapshot.totals.cargosNormales)}</dd></div>
                     <div><dt>Pagos elegibles</dt><dd>{money(snapshot.totals.pagosElegibles)}</dd></div>
+                    <div><dt>Exonerado</dt><dd>{money(snapshot.totals.exonerado)}</dd></div>
+                    <div><dt>Ajustes validados por baja</dt><dd>{money(snapshot.totals.ajustesValidadosBaja)}</dd></div>
                     <div><dt>Ajustes técnicos de cargo</dt><dd>{money(snapshot.totals.ajustesCargo)}</dd></div>
                     <div><dt>Ajustes técnicos de pago</dt><dd>{money(snapshot.totals.ajustesPago)}</dd></div>
                   </dl>
@@ -317,7 +327,7 @@ export function AdminMigracionPage() {
                 <article className="panel migration-plan">
                   <p className="legacy-kicker">Criterio</p>
                   <h3>Qué significa “ajuste legacy”</h3>
-                  <p className="muted">No es una nueva regla del sistema. Es una marca temporal para los casos donde la planilla demuestra un saldo o cobro, pero no permite asignarlo a un mes o concepto sin inventar datos. Esos casos deben resolverse antes de importar.</p>
+                  <p className="muted">No es una nueva regla del sistema. Es una marca temporal para los casos donde la planilla demuestra un saldo o cobro, pero no permite asignarlo a un mes o concepto sin inventar datos. Los cambios de condición con importes completos de tarifa y las bajas confirmadas se tratan como hechos históricos, no como errores.</p>
                 </article>
               </div>
 
@@ -339,6 +349,7 @@ export function AdminMigracionPage() {
                         <th>Pagos</th>
                         <th>Exonerado</th>
                         <th>Deuda hoja</th>
+                        <th>Objetivo</th>
                         <th>Reconstruida</th>
                         <th>Diferencia</th>
                         <th>Observaciones</th>
@@ -363,6 +374,7 @@ export function AdminMigracionPage() {
                             <td>{money(member.totalPagosElegibles)}</td>
                             <td>{money(member.totalExonerado)}</td>
                             <td>{money(member.deudaFuente)}</td>
+                            <td>{money(member.deudaObjetivoMigracion)}</td>
                             <td>{money(member.deudaReconstruida)}</td>
                             <td>{money(member.diferencia)}</td>
                             <td className="migration-observations">
@@ -377,7 +389,7 @@ export function AdminMigracionPage() {
               </article>
 
               <div className="cuotas-info-box migration-next-step">
-                <strong>Control previo a importación:</strong> la deuda reconstruida debe coincidir con la fuente y las filas “REVISAR” deben resolverse. Solo después convertiremos el snapshot aprobado en escrituras idempotentes a Firestore.
+                <strong>Control previo a importación:</strong> la deuda reconstruida debe coincidir con la deuda objetivo de migración y las filas “REVISAR” deben resolverse. Solo después convertiremos el snapshot aprobado en escrituras idempotentes a Firestore.
               </div>
             </>
           )}

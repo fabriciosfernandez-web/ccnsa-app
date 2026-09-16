@@ -5,6 +5,7 @@ import {
   createEgreso,
   createIngresoManual,
   loadFinanzas,
+  type FinanzasActor,
   type FinanzasSnapshot,
   type MovimientoFinancieroTipo,
   type MovimientoEstado,
@@ -102,6 +103,15 @@ export function AdminFinanzasPage() {
   const [annulling, setAnnulling] = useState(false)
 
   const canWrite = profile?.role === 'ADMIN' || profile?.role === 'TESORERIA'
+  const actor = useMemo<FinanzasActor | null>(() => {
+    if (!user || !profile) return null
+    return {
+      uid: user.uid,
+      nombre: profile.displayName,
+      email: profile.email,
+      rol: profile.role,
+    }
+  }, [user, profile])
 
   const refresh = useCallback(async () => {
     try {
@@ -121,16 +131,16 @@ export function AdminFinanzasPage() {
 
   async function submitIngreso(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!user || !canWrite || saving) return
+    if (!actor || !canWrite || saving) return
     const form = event.currentTarget
     const movement = movementFromForm(form)
     try {
       setSaving('INGRESO')
       setError('')
       setSuccess('')
-      await createIngresoManual(movement, user.uid)
+      await createIngresoManual(movement, actor)
       form.reset()
-      setSuccess('Ingreso registrado. El movimiento quedó trazado en audit_log.')
+      setSuccess('Ingreso registrado. El usuario y la acción quedaron trazados en audit_log.')
       await refresh()
     } catch (caught) {
       setError(errorMessage(caught))
@@ -141,16 +151,16 @@ export function AdminFinanzasPage() {
 
   async function submitEgreso(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!user || !canWrite || saving) return
+    if (!actor || !canWrite || saving) return
     const form = event.currentTarget
     const movement = movementFromForm(form)
     try {
       setSaving('EGRESO')
       setError('')
       setSuccess('')
-      await createEgreso(movement, user.uid)
+      await createEgreso(movement, actor)
       form.reset()
-      setSuccess('Egreso registrado. El movimiento quedó trazado en audit_log.')
+      setSuccess('Egreso registrado. El usuario y la acción quedaron trazados en audit_log.')
       await refresh()
     } catch (caught) {
       setError(errorMessage(caught))
@@ -240,7 +250,7 @@ export function AdminFinanzasPage() {
   }, [movements])
 
   async function confirmAnnulment() {
-    if (!user || !canWrite || !annulTarget || annulling) return
+    if (!actor || !canWrite || !annulTarget || annulling) return
     try {
       setAnnulling(true)
       setError('')
@@ -249,9 +259,9 @@ export function AdminFinanzasPage() {
         annulTarget.tipo as MovimientoFinancieroTipo,
         annulTarget.recordId,
         annulReason,
-        user.uid,
+        actor,
       )
-      setSuccess(`${annulTarget.tipo === 'INGRESO' ? 'Ingreso' : 'Egreso'} anulado. El registro se conserva y el motivo quedó auditado.`)
+      setSuccess(`${annulTarget.tipo === 'INGRESO' ? 'Ingreso' : 'Egreso'} anulado. El usuario, la acción y el motivo quedaron auditados.`)
       setAnnulTarget(null)
       setAnnulReason('')
       await refresh()
@@ -295,13 +305,16 @@ export function AdminFinanzasPage() {
       ]),
       [],
       ['AUDITORIA FINANCIERA'],
-      ['Fecha movimiento', 'Acción', 'Entidad', 'ID', 'Importe', 'Actor UID', 'Motivo'],
+      ['Fecha movimiento', 'Acción', 'Entidad', 'ID', 'Importe', 'Usuario', 'Rol', 'Email', 'Actor UID', 'Motivo'],
       ...snapshot.audit.map((item) => [
         item.fechaMovimiento ?? '',
         AUDIT_LABELS[item.action] ?? item.action,
         item.entity,
         item.entityId,
         item.importe ?? '',
+        item.actorNombre ?? item.actorUid,
+        item.actorRol ?? '',
+        item.actorEmail ?? '',
         item.actorUid,
         item.motivo ?? '',
       ]),
@@ -436,8 +449,21 @@ export function AdminFinanzasPage() {
 
       <article className="panel legacy-panel finance-audit-panel">
         <div className="panel-heading-row"><div><p className="legacy-kicker">Trazabilidad</p><h3>Auditoría financiera</h3></div><span className="status-badge neutral">{snapshot?.audit.length ?? 0} evento(s)</span></div>
-        <div className="legacy-table-wrap"><table className="legacy-table"><thead><tr><th>Registrado</th><th>Acción</th><th>Movimiento</th><th>Importe</th><th>Actor</th><th>Motivo</th></tr></thead><tbody>
-          {!snapshot || snapshot.audit.length === 0 ? <tr><td colSpan={6}>Sin eventos financieros auditables en este periodo.</td></tr> : snapshot.audit.map((item) => <tr key={item.id}><td>{formatAuditDate(item.createdAt)}</td><td>{AUDIT_LABELS[item.action] ?? item.action}</td><td>{item.concepto || item.entityId}</td><td>{item.importe === undefined ? '—' : money(item.importe)}</td><td className="finance-uid">{item.actorUid || '—'}</td><td>{item.motivo || '—'}</td></tr>)}
+        <div className="legacy-table-wrap"><table className="legacy-table"><thead><tr><th>Registrado</th><th>Acción</th><th>Movimiento</th><th>Importe</th><th>Usuario</th><th>Motivo</th></tr></thead><tbody>
+          {!snapshot || snapshot.audit.length === 0 ? <tr><td colSpan={6}>Sin eventos financieros auditables en este periodo.</td></tr> : snapshot.audit.map((item) => (
+            <tr key={item.id}>
+              <td>{formatAuditDate(item.createdAt)}</td>
+              <td>{AUDIT_LABELS[item.action] ?? item.action}</td>
+              <td>{item.concepto || item.entityId}</td>
+              <td>{item.importe === undefined ? '—' : money(item.importe)}</td>
+              <td className="finance-uid">
+                <strong>{item.actorNombre || item.actorUid || '—'}</strong>
+                {(item.actorRol || item.actorEmail) && <small>{[item.actorRol, item.actorEmail].filter(Boolean).join(' · ')}</small>}
+                {item.actorUid && <small>UID: {item.actorUid}</small>}
+              </td>
+              <td>{item.motivo || '—'}</td>
+            </tr>
+          ))}
         </tbody></table></div>
       </article>
     </section>

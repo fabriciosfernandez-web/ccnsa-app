@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
+import { appEnvironment } from '../lib/firebase'
 
 export function AppShell() {
   const { profile, logout } = useAuth()
@@ -14,6 +15,12 @@ export function AppShell() {
             <h1>CCNSA</h1>
           </div>
         </div>
+
+        {appEnvironment === 'dev' && (
+          <div className="status-badge neutral" title="Este ambiente usa Firebase DEV y datos de prueba">
+            DEV · ENTORNO DE PRUEBA
+          </div>
+        )}
 
         <nav className="nav-list" aria-label="Navegación principal">
           {profile?.role === 'SOCIO' ? (
@@ -39,6 +46,16 @@ export function AppShell() {
               <NavLink to="/admin/reglas-cobro" className={({ isActive }) => (isActive ? 'active' : '')}>
                 Reglas especiales
               </NavLink>
+              {profile?.role === 'ADMIN' && (
+                <>
+                  <NavLink to="/admin/migracion" end className={({ isActive }) => (isActive ? 'active' : '')}>
+                    Migración 2026
+                  </NavLink>
+                  <NavLink to="/admin/migracion/preflight" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    Preflight 3D
+                  </NavLink>
+                </>
+              )}
             </>
           )}
         </nav>

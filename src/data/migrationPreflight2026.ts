@@ -1,5 +1,6 @@
 import { collection, getDocs, type DocumentData } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { MIGRATION_APPROVED_BASELINE_2026 } from './migrationApprovedBaseline2026'
 import type {
   MigrationDryRun2026,
   MigrationDryRunCollection,
@@ -33,6 +34,8 @@ export interface MigrationPreflight2026 {
   priorMatchingAuditEntries: number
   existingMigrationDocuments: number
   existingCollectionCounts: Record<MigrationDryRunCollection, number>
+  baselineMatches: boolean
+  approvedBaseline: typeof MIGRATION_APPROVED_BASELINE_2026
   blockers: string[]
   warnings: string[]
 }
@@ -87,12 +90,33 @@ function plannedSocios(plan: MigrationDryRun2026) {
   return plan.documents.filter((item): item is MigrationDryRunDocument => item.collection === 'socios')
 }
 
+function matchesApprovedBaseline(plan: MigrationDryRun2026) {
+  const baseline = MIGRATION_APPROVED_BASELINE_2026
+  return plan.fingerprint === baseline.fingerprint
+    && plan.totals.documentos === baseline.plannedDocuments
+    && Math.abs(plan.totals.deuda2026 - baseline.deuda2026) <= 0.5
+    && Math.abs(plan.totals.deuda2025 - baseline.deuda2025) <= 0.5
+    && Math.abs(plan.totals.deudaTotal - baseline.deudaTotal) <= 0.5
+}
+
 export async function runMigrationPreflight2026(plan: MigrationDryRun2026): Promise<MigrationPreflight2026> {
   const database = requireDb()
   const blockers: string[] = []
   const warnings: string[] = []
 
   if (plan.status !== 'LISTO') blockers.push('El dry-run 3C está BLOQUEADO; no corresponde ejecutar preflight de importación.')
+
+  const baselineMatches = matchesApprovedBaseline(plan)
+  if (!baselineMatches) {
+    blockers.push(
+      `El plan fresco no coincide con el baseline aprobado (${MIGRATION_APPROVED_BASELINE_2026.fingerprint}). `
+      + 'La fuente cambió después de la validación; debe revisarse y aprobarse un nuevo baseline antes de escribir.',
+    )
+  } else {
+    warnings.push(
+      `El fingerprint y los totales coinciden con el baseline aprobado el ${MIGRATION_APPROVED_BASELINE_2026.acceptedAt}.`,
+    )
+  }
 
   const snapshots = await Promise.all(
     COLLECTIONS.map(async (name) => ({ name, snapshot: await getDocs(collection(database, name)) })),
@@ -198,6 +222,8 @@ export async function runMigrationPreflight2026(plan: MigrationDryRun2026): Prom
     priorMatchingAuditEntries,
     existingMigrationDocuments,
     existingCollectionCounts,
+    baselineMatches,
+    approvedBaseline: MIGRATION_APPROVED_BASELINE_2026,
     blockers: [...new Set(blockers)],
     warnings: [...new Set(warnings)],
   }

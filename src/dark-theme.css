@@ -1,0 +1,240 @@
+/* Dark-theme refinement.
+ * Keeps the light theme untouched and moves dark mode away from an all-navy look.
+ * The main workspace uses neutral graphite layers while the sidebar preserves CCNSA identity.
+ */
+:root[data-theme='dark'] {
+  --app-bg: #111418;
+  --surface: #171b20;
+  --surface-raised: #1b2026;
+  --surface-subtle: #14181d;
+  --surface-muted: #20262d;
+  --surface-hover: #242b32;
+  --surface-input: #151a1f;
+
+  --text-primary: #f1f3f5;
+  --text-secondary: #b0bac2;
+  --text-tertiary: #7f8b95;
+  --text-inverse: #12171b;
+
+  --border: #2a3138;
+  --border-strong: #3a444d;
+  --focus-ring: rgba(103, 151, 184, 0.22);
+
+  /* Brand stays visible in navigation instead of tinting every surface blue. */
+  --sidebar-bg: #0d1c27;
+  --sidebar-bg-2: #09151e;
+  --sidebar-text: #c9d2d8;
+  --sidebar-muted: #81929e;
+  --sidebar-hover: rgba(255, 255, 255, 0.055);
+  --sidebar-active: rgba(42, 78, 103, 0.68);
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+
+  --metric-accent: #a68b50;
+  --table-header: #15191e;
+  --overlay: rgba(0, 0, 0, 0.66);
+
+  --success: #72b796;
+  --success-soft: #17231e;
+  --warning: #d0ad64;
+  --warning-soft: #2a2418;
+  --danger: #df8d8d;
+  --danger-soft: #2c1d20;
+  --info: #83afca;
+  --info-soft: #17242d;
+
+  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.22), 0 8px 22px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 14px 36px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 28px 72px rgba(0, 0, 0, 0.28);
+}
+
+:root[data-theme='dark'] .workspace-topbar {
+  background: color-mix(in srgb, #15191e 94%, transparent);
+  border-bottom-color: #293139;
+}
+
+:root[data-theme='dark'] .workspace-page {
+  background:
+    radial-gradient(circle at 78% -10%, rgba(195, 163, 90, 0.035), transparent 30%),
+    var(--app-bg);
+}
+
+:root[data-theme='dark'] .panel,
+:root[data-theme='dark'] .metric-card,
+:root[data-theme='dark'] .legacy-panel,
+:root[data-theme='dark'] .legacy-metric-card {
+  background: var(--surface-raised);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+:root[data-theme='dark'] .metric-card::before {
+  background: linear-gradient(90deg, #536f82, var(--brand-accent));
+  opacity: 0.88;
+}
+
+:root[data-theme='dark'] .feature-card::before {
+  background: linear-gradient(90deg, #45647a, #7a4952, var(--brand-accent));
+  opacity: 0.82;
+}
+
+/* Page-specific styles still contain some legacy white backgrounds.
+ * These late overrides guarantee coherent dark controls across every module.
+ */
+:root[data-theme='dark'] input,
+:root[data-theme='dark'] select,
+:root[data-theme='dark'] textarea,
+:root[data-theme='dark'] .finance-period input,
+:root[data-theme='dark'] .finance-fields input,
+:root[data-theme='dark'] .finance-fields select,
+:root[data-theme='dark'] .finance-filters input,
+:root[data-theme='dark'] .finance-filters select,
+:root[data-theme='dark'] .finance-annul-panel textarea,
+:root[data-theme='dark'] .audit-filters input,
+:root[data-theme='dark'] .audit-filters select,
+:root[data-theme='dark'] .socios-form input,
+:root[data-theme='dark'] .socios-form select,
+:root[data-theme='dark'] .socios-form textarea,
+:root[data-theme='dark'] .cuotas-field-label input,
+:root[data-theme='dark'] .cuotas-field-label select,
+:root[data-theme='dark'] .reglas-inner-form input,
+:root[data-theme='dark'] .reglas-inner-form select {
+  color: var(--text-primary) !important;
+  background: var(--surface-input) !important;
+  border-color: var(--border-strong) !important;
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] input:hover,
+:root[data-theme='dark'] select:hover,
+:root[data-theme='dark'] textarea:hover {
+  border-color: #48545e !important;
+}
+
+:root[data-theme='dark'] input:focus,
+:root[data-theme='dark'] select:focus,
+:root[data-theme='dark'] textarea:focus {
+  border-color: #668ba3 !important;
+  box-shadow: 0 0 0 3px var(--focus-ring) !important;
+}
+
+:root[data-theme='dark'] input::placeholder,
+:root[data-theme='dark'] textarea::placeholder {
+  color: #71808b;
+}
+
+:root[data-theme='dark'] input[type='date'],
+:root[data-theme='dark'] input[type='month'] {
+  color-scheme: dark;
+}
+
+:root[data-theme='dark'] .finance-period,
+:root[data-theme='dark'] .finance-filters label,
+:root[data-theme='dark'] .finance-annul-panel label,
+:root[data-theme='dark'] .finance-fields label,
+:root[data-theme='dark'] .cuotas-field-label {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme='dark'] .button.primary,
+:root[data-theme='dark'] .legacy-primary-button {
+  color: #f7f9fa;
+  background: linear-gradient(135deg, #173247, #21455d);
+  border: 1px solid #31576d;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.16);
+}
+
+:root[data-theme='dark'] .button.primary:hover:not(:disabled),
+:root[data-theme='dark'] .legacy-primary-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1b3950, #28516b);
+}
+
+:root[data-theme='dark'] .button.secondary {
+  color: #d9e0e5;
+  background: #20272d;
+  border-color: #313b43;
+}
+
+:root[data-theme='dark'] .button.secondary:hover:not(:disabled) {
+  background: #262e35;
+  border-color: #414c55;
+}
+
+:root[data-theme='dark'] .legacy-table-wrap,
+:root[data-theme='dark'] .table-wrap {
+  background: #171b20;
+  border-color: var(--border);
+}
+
+:root[data-theme='dark'] .legacy-table th,
+:root[data-theme='dark'] .table-wrap th,
+:root[data-theme='dark'] table th {
+  background: #15191e;
+  color: #a8b3bb;
+}
+
+:root[data-theme='dark'] .legacy-table tbody tr:hover,
+:root[data-theme='dark'] .table-wrap tbody tr:hover,
+:root[data-theme='dark'] table tbody tr:hover {
+  background: #20262c;
+}
+
+:root[data-theme='dark'] .notice,
+:root[data-theme='dark'] .socios-success,
+:root[data-theme='dark'] .cuotas-info-box,
+:root[data-theme='dark'] .finance-annul-panel {
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .socios-success,
+:root[data-theme='dark'] .finance-safety {
+  color: #d9e6df;
+  background: #17251f;
+  border-color: #2a4c3b;
+}
+
+:root[data-theme='dark'] .cuotas-info-box {
+  color: #d8cda9;
+  background: #262218;
+  border-color: #51462b;
+}
+
+:root[data-theme='dark'] .finance-annul-panel {
+  color: var(--text-primary);
+  background: #272218;
+  border-color: #5c4b27;
+}
+
+:root[data-theme='dark'] .socio-row {
+  color: var(--text-primary);
+  background: #181d22;
+  border-color: var(--border);
+}
+
+:root[data-theme='dark'] .socio-row:hover {
+  background: #20262c;
+}
+
+:root[data-theme='dark'] .socio-row.selected {
+  background: #20272d;
+  border-color: #8e7847;
+  box-shadow: 0 0 0 2px rgba(195, 163, 90, 0.08);
+}
+
+:root[data-theme='dark'] .status-badge.neutral {
+  color: #aeb8bf;
+  background: #242b31;
+}
+
+:root[data-theme='dark'] .theme-control select {
+  background: #171c21 !important;
+  border-color: #313a42 !important;
+}
+
+:root[data-theme='dark'] .dashboard-module-icon {
+  color: #9bb7c8;
+  background: #20272d;
+}
+
+:root[data-theme='dark'] .dashboard-module-row:hover {
+  background: #1f252b;
+}

@@ -1,0 +1,192 @@
+.nav-list {
+  gap: 18px;
+}
+
+.nav-group {
+  display: grid;
+  gap: 6px;
+}
+
+.nav-group-label {
+  padding: 0 12px;
+  color: #8196a7;
+  font-size: 0.62rem;
+  font-weight: 820;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.nav-group-tools {
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.admin-page-header,
+.legacy-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 0 18px;
+  border-bottom: 1px solid #dce4ea;
+}
+
+/* El entorno ya se identifica en el sidebar: evitamos repetir etiquetas de fase/DEV en cada módulo. */
+.legacy-page-header > div:first-child > .legacy-kicker,
+.legacy-page-header > .status-badge.neutral {
+  display: none;
+}
+
+.admin-page-header-copy,
+.legacy-page-header > div:first-child {
+  max-width: 780px;
+}
+
+.admin-page-header h2,
+.legacy-page-header h2 {
+  margin-bottom: 7px;
+  letter-spacing: -0.015em;
+}
+
+.admin-page-description,
+.legacy-page-header .muted {
+  max-width: 760px;
+  margin-bottom: 0;
+  line-height: 1.6;
+}
+
+.admin-page-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.admin-page-actions,
+.finance-header-actions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.legacy-page-stack {
+  gap: 22px;
+}
+
+.legacy-page-stack > .panel,
+.legacy-page-stack > .metric-grid,
+.legacy-page-stack > [class*="-grid"] {
+  scroll-margin-top: 20px;
+}
+
+.panel,
+.metric-card {
+  border-color: #dce4e9;
+  box-shadow: 0 8px 24px rgba(20, 44, 62, 0.055);
+}
+
+.panel:hover,
+.metric-card:hover {
+  border-color: #d2dde4;
+}
+
+.feature-card {
+  position: relative;
+  overflow: hidden;
+  border-top: 0;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, var(--ccnsa-blue), var(--ccnsa-gold));
+}
+
+.feature-card h3 {
+  margin-top: 2px;
+}
+
+.legacy-table th,
+.table-wrap th {
+  letter-spacing: 0.015em;
+  text-transform: none;
+  color: #526878;
+}
+
+.legacy-table tbody tr:hover,
+.table-wrap tbody tr:hover {
+  background: #fafcfd;
+}
+
+.panel-heading-row h3 {
+  margin-bottom: 4px;
+}
+
+.socios-form input,
+.socios-form select,
+.socios-form textarea,
+.cuotas-field-label input,
+.cuotas-field-label select,
+.reglas-inner-form input,
+.reglas-inner-form select {
+  border-color: #cbd7df;
+  background: #fff;
+}
+
+.socios-form input:focus,
+.socios-form select:focus,
+.socios-form textarea:focus,
+.cuotas-field-label input:focus,
+.cuotas-field-label select:focus,
+.finance-fields input:focus,
+.finance-fields select:focus,
+.finance-filters input:focus,
+.finance-filters select:focus,
+.audit-filters input:focus,
+.audit-filters select:focus {
+  outline: none;
+  border-color: var(--ccnsa-blue-2);
+  box-shadow: 0 0 0 3px rgba(31, 63, 91, 0.1);
+}
+
+/* La auditoría se consulta desde el módulo central para evitar duplicar paneles. */
+.finance-audit-panel {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .nav-list {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nav-group-label {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 680px) {
+  .admin-page-header,
+  .legacy-page-header {
+    flex-direction: column;
+  }
+
+  .admin-page-actions,
+  .finance-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .nav-group {
+    grid-template-columns: 1fr;
+  }
+}

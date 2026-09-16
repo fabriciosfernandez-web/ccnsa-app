@@ -1,10 +1,17 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { ThemeProvider } from './theme/ThemeProvider'
 import './styles.css'
+import './admin-ui.css'
+import './theme.css'
+import './dark-theme.css'
+import './dark-theme-polish.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
   </StrictMode>,
 )

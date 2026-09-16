@@ -2,8 +2,10 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppShell } from './layouts/AppShell'
+import { AdminAuditoriaPage } from './pages/AdminAuditoriaPage'
 import { AdminCuotasPage } from './pages/AdminCuotasPage'
 import { AdminDashboard } from './pages/AdminDashboard'
+import { AdminFinanzasPage } from './pages/AdminFinanzasPage'
 import { AdminMigracionPage } from './pages/AdminMigracionPage'
 import { AdminMigracionPreflightPage } from './pages/AdminMigracionPreflightPage'
 import { AdminReglasCobroPage } from './pages/AdminReglasCobroPage'
@@ -44,6 +46,8 @@ export default function App() {
               <Route path="/admin/socios" element={<AdminSociosPage />} />
               <Route path="/admin/cuotas" element={<AdminCuotasPage />} />
               <Route path="/admin/reglas-cobro" element={<AdminReglasCobroPage />} />
+              <Route path="/admin/finanzas" element={<AdminFinanzasPage />} />
+              <Route path="/admin/auditoria" element={<AdminAuditoriaPage />} />
               <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
                 <Route path="/admin/migracion" element={<AdminMigracionPage />} />
                 <Route path="/admin/migracion/preflight" element={<AdminMigracionPreflightPage />} />

@@ -1,0 +1,123 @@
+/* Final dark-mode polish: neutral graphite workspace, higher information contrast,
+ * and restrained brand accents. Light mode is intentionally untouched. */
+:root[data-theme='dark'] {
+  --app-bg: #101316;
+  --surface: #161a1e;
+  --surface-raised: #181d22;
+  --surface-subtle: #13171b;
+  --surface-muted: #20262c;
+  --surface-hover: #232a30;
+  --surface-input: #14191d;
+
+  --text-primary: #edf1f3;
+  --text-secondary: #aab4bb;
+  --text-tertiary: #828e97;
+  --border: #2b3238;
+  --border-strong: #3a444b;
+  --table-header: #14181c;
+}
+
+:root[data-theme='dark'] .workspace-page {
+  background:
+    radial-gradient(circle at 82% -12%, rgba(195, 163, 90, 0.025), transparent 28%),
+    var(--app-bg);
+}
+
+:root[data-theme='dark'] .workspace-topbar {
+  background: color-mix(in srgb, #14181c 95%, transparent);
+}
+
+:root[data-theme='dark'] .panel,
+:root[data-theme='dark'] .metric-card,
+:root[data-theme='dark'] .legacy-panel,
+:root[data-theme='dark'] .legacy-metric-card {
+  background: #181d22;
+  border-color: #2d353c;
+}
+
+:root[data-theme='dark'] .metric-card::before {
+  background: linear-gradient(90deg, #506d80, #b09354);
+  opacity: 0.7;
+}
+
+:root[data-theme='dark'] .legacy-table th,
+:root[data-theme='dark'] .table-wrap th,
+:root[data-theme='dark'] table th {
+  color: #aeb8bf;
+  background: #14181c;
+}
+
+:root[data-theme='dark'] .legacy-table td,
+:root[data-theme='dark'] .table-wrap td,
+:root[data-theme='dark'] table td {
+  color: #dce2e6;
+}
+
+:root[data-theme='dark'] .audit-date,
+:root[data-theme='dark'] .audit-amount,
+:root[data-theme='dark'] .audit-reason,
+:root[data-theme='dark'] .audit-secondary,
+:root[data-theme='dark'] .audit-user small {
+  color: #9ca8b0;
+}
+
+:root[data-theme='dark'] .audit-module {
+  color: #b7c4cc;
+  background: #20282e;
+  border-color: #303b43;
+}
+
+:root[data-theme='dark'] .audit-row-expanded td {
+  background: #1d2328;
+}
+
+:root[data-theme='dark'] .audit-detail-grid {
+  background: #13181c;
+}
+
+:root[data-theme='dark'] .audit-expand-button {
+  color: #aeb8bf;
+  background: #1e252a;
+  border-color: #313a41;
+}
+
+:root[data-theme='dark'] .audit-expand-button:hover {
+  color: #f1f4f5;
+  background: #262e34;
+  border-color: #465159;
+}
+
+:root[data-theme='dark'] .status-badge.neutral {
+  color: #aeb9c0;
+  background: #20272d;
+  border: 1px solid #303940;
+}
+
+:root[data-theme='dark'] .button.secondary {
+  color: #dbe1e5;
+  background: #1d2429;
+  border-color: #303940;
+}
+
+:root[data-theme='dark'] .button.secondary:hover:not(:disabled) {
+  background: #242c32;
+  border-color: #424d55;
+}
+
+:root[data-theme='dark'] input,
+:root[data-theme='dark'] select,
+:root[data-theme='dark'] textarea {
+  background: #14191d !important;
+  border-color: #374149 !important;
+}
+
+:root[data-theme='dark'] input:hover,
+:root[data-theme='dark'] select:hover,
+:root[data-theme='dark'] textarea:hover {
+  border-color: #4a565f !important;
+}
+
+:root[data-theme='dark'] .theme-control select {
+  background: #151a1e !important;
+  border-color: #343d44 !important;
+}

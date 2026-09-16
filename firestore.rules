@@ -42,6 +42,30 @@ service cloud.firestore {
       return currentUser().data.socioId;
     }
 
+    function canCreateFinanceMovement() {
+      return (isAdmin() || isTreasury())
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.importe is number
+        && request.resource.data.importe > 0
+        && request.resource.data.estado == 'REGISTRADO';
+    }
+
+    function canVoidFinanceMovement() {
+      return (isAdmin() || isTreasury())
+        && resource.data.estado == 'REGISTRADO'
+        && request.resource.data.estado == 'ANULADO'
+        && request.resource.data.anuladoPorUid == request.auth.uid
+        && request.resource.data.anulacionMotivo is string
+        && request.resource.data.anulacionMotivo.size() >= 5
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estado',
+          'anulacionMotivo',
+          'anuladoPorUid',
+          'anuladoAt',
+          'updatedAt'
+        ]);
+    }
+
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isStaff());
       allow create, update, delete: if isAdmin();
@@ -84,12 +108,16 @@ service cloud.firestore {
 
     match /ingresos/{ingresoId} {
       allow read: if isStaff();
-      allow create, update, delete: if isAdmin() || isTreasury();
+      allow create: if canCreateFinanceMovement();
+      allow update: if canVoidFinanceMovement();
+      allow delete: if false;
     }
 
     match /egresos/{egresoId} {
       allow read: if isStaff();
-      allow create, update, delete: if isAdmin() || isTreasury();
+      allow create: if canCreateFinanceMovement();
+      allow update: if canVoidFinanceMovement();
+      allow delete: if false;
     }
 
     match /actividades/{actividadId} {

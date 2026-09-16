@@ -40,9 +40,14 @@ export function AppShell() {
                 Reglas especiales
               </NavLink>
               {profile?.role === 'ADMIN' && (
-                <NavLink to="/admin/migracion" className={({ isActive }) => (isActive ? 'active' : '')}>
-                  Migración 2026
-                </NavLink>
+                <>
+                  <NavLink to="/admin/migracion" end className={({ isActive }) => (isActive ? 'active' : '')}>
+                    Migración 2026
+                  </NavLink>
+                  <NavLink to="/admin/migracion/preflight" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    Preflight 3D
+                  </NavLink>
+                </>
               )}
             </>
           )}

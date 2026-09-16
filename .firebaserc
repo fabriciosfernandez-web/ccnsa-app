@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "ccnsa-web-dev"
+    "default": "ccnsa-web-dev",
+    "dev": "ccnsa-web-dev",
+    "prod": "ccnsa-web-prod"
   }
 }

@@ -8,6 +8,10 @@ import {
   analyzeMigrationSnapshot2026,
   type MigrationSnapshot2026,
 } from '../data/migrationSnapshot2026'
+import {
+  buildMigrationDryRun2026,
+  type MigrationDryRun2026,
+} from '../data/migrationDryRun2026'
 import './admin-migracion.css'
 
 const money = (value: number | null) => value === null
@@ -32,6 +36,7 @@ export function AdminMigracionPage() {
   const { user, profile } = useAuth()
   const [preview, setPreview] = useState<MigrationPreview | null>(null)
   const [snapshot, setSnapshot] = useState<MigrationSnapshot2026 | null>(null)
+  const [dryRun, setDryRun] = useState<MigrationDryRun2026 | null>(null)
   const [loading, setLoading] = useState(false)
   const [snapshotLoading, setSnapshotLoading] = useState(false)
   const [error, setError] = useState('')
@@ -50,6 +55,7 @@ export function AdminMigracionPage() {
       setError('')
       setPreview(null)
       setSnapshot(null)
+      setDryRun(null)
       const result = await analyzeMigration2026(user, spreadsheet, maxRow)
       setPreview(result)
       setSource({ spreadsheet, maxRow })
@@ -66,6 +72,7 @@ export function AdminMigracionPage() {
     try {
       setSnapshotLoading(true)
       setError('')
+      setDryRun(null)
       setSnapshot(await analyzeMigrationSnapshot2026(user, source.spreadsheet, preview, source.maxRow))
     } catch (caught) {
       console.error('Migration snapshot error', caught)
@@ -75,9 +82,22 @@ export function AdminMigracionPage() {
     }
   }
 
+  function buildDryRun() {
+    if (!preview || !snapshot) return
+    setError('')
+    setDryRun(buildMigrationDryRun2026(preview, snapshot))
+  }
+
   const snapshotDifference = snapshot
     ? snapshot.totals.deudaReconstruida - snapshot.totals.deudaObjetivoMigracion
     : null
+  const dryRunAllowed = Boolean(
+    snapshot
+    && Math.abs(snapshotDifference ?? 0) <= 0.5
+    && snapshot.totals.revisar === 0
+    && snapshot.totals.ajustesCargo <= 0.5
+    && snapshot.totals.ajustesPago <= 0.5,
+  )
   const basicMismatches = preview
     ? preview.members.filter((member) =>
         member.sumatoriaHoja !== null
@@ -388,9 +408,167 @@ export function AdminMigracionPage() {
                 </div>
               </article>
 
-              <div className="cuotas-info-box migration-next-step">
-                <strong>Control previo a importación:</strong> la deuda reconstruida debe coincidir con la deuda objetivo de migración y las filas “REVISAR” deben resolverse. Solo después convertiremos el snapshot aprobado en escrituras idempotentes a Firestore.
-              </div>
+              <article className="panel migration-snapshot-launch migration-dryrun-launch">
+                <div>
+                  <p className="legacy-kicker">Fase 3C · Dry-run</p>
+                  <h3>Generar plan exacto de importación</h3>
+                  <p className="muted">Convierte el snapshot aprobado en documentos determinísticos de Firestore, pero todavía no ejecuta ninguna escritura. Rehidrata los cobros previos a cambios SOLTERO→CASADO como cuotas históricas pagadas, conserva deuda 2025 como saldo agregado y no inventa fechas exactas.</p>
+                  {!dryRunAllowed && <small className="migration-blocked-copy">Disponible únicamente cuando 3B tenga diferencia 0, 0 filas REVISAR y 0 ajustes técnicos.</small>}
+                </div>
+                <button className="button primary" type="button" onClick={buildDryRun} disabled={!dryRunAllowed}>
+                  {dryRun ? 'Regenerar dry-run 3C' : 'Generar dry-run 3C'}
+                </button>
+              </article>
+
+              {dryRun && (
+                <>
+                  <div className={`notice ${dryRun.status === 'LISTO' ? 'socios-success' : 'error'} migration-dryrun-status`}>
+                    <strong>Dry-run {dryRun.status}.</strong> Fingerprint <code>{dryRun.fingerprint}</code>. No se escribió ningún documento en Firestore.
+                  </div>
+
+                  {dryRun.blockers.length > 0 && (
+                    <div className="notice error">
+                      <strong>Bloqueos detectados:</strong>
+                      <ul className="migration-checklist">
+                        {dryRun.blockers.map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="metric-grid legacy-metric-grid migration-metrics migration-dryrun-metrics">
+                    <article className="metric-card legacy-metric-card">
+                      <span>Documentos planificados</span>
+                      <strong>{dryRun.totals.documentos}</strong>
+                      <small>{dryRun.totals.lotesEstimados} lote(s) seguros de hasta 400 escrituras.</small>
+                    </article>
+                    <article className="metric-card legacy-metric-card">
+                      <span>Deuda final a migrar</span>
+                      <strong>{money(dryRun.totals.deudaTotal)}</strong>
+                      <small>2026: {money(dryRun.totals.deuda2026)} · 2025: {money(dryRun.totals.deuda2025)}</small>
+                    </article>
+                    <article className="metric-card legacy-metric-card">
+                      <span>Pagos / aplicaciones</span>
+                      <strong>{dryRun.totals.pagos} / {dryRun.totals.aplicaciones}</strong>
+                      <small>Importe histórico planificado: {money(dryRun.totals.importePagos)}</small>
+                    </article>
+                    <article className="metric-card legacy-metric-card">
+                      <span>Histórico rehidratado</span>
+                      <strong>{money(dryRun.totals.pagosHistoricosRehidratados)}</strong>
+                      <small>{dryRun.totals.cambiosCategoria} cambio(s) SOLTERO→CASADO reconstruido(s).</small>
+                    </article>
+                  </div>
+
+                  <div className="migration-detail-grid">
+                    <article className="panel migration-config-card">
+                      <p className="legacy-kicker">Colecciones</p>
+                      <h3>Escrituras que se crearían</h3>
+                      <dl className="migration-definition-list">
+                        <div><dt>socios</dt><dd>{dryRun.collectionCounts.socios}</dd></div>
+                        <div><dt>obligaciones</dt><dd>{dryRun.collectionCounts.obligaciones}</dd></div>
+                        <div><dt>pagos</dt><dd>{dryRun.collectionCounts.pagos}</dd></div>
+                        <div><dt>aplicaciones_pago</dt><dd>{dryRun.collectionCounts.aplicaciones_pago}</dd></div>
+                        <div><dt>excepciones_cobro</dt><dd>{dryRun.collectionCounts.excepciones_cobro}</dd></div>
+                        <div><dt>categoria_historial</dt><dd>{dryRun.collectionCounts.categoria_historial}</dd></div>
+                      </dl>
+                    </article>
+                    <article className="panel migration-plan">
+                      <p className="legacy-kicker">Salvaguardas 3C</p>
+                      <h3>Qué no hace este paso</h3>
+                      <ul className="migration-checklist">
+                        {dryRun.warnings.map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    </article>
+                  </div>
+
+                  <article className="panel migration-table-panel">
+                    <div className="panel-heading-row">
+                      <div>
+                        <p className="legacy-kicker">Plan por socio</p>
+                        <h3>Resultado del dry-run</h3>
+                      </div>
+                      <span className={`status-badge ${dryRun.status === 'LISTO' ? 'active' : 'neutral'}`}>{dryRun.status}</span>
+                    </div>
+                    <div className="migration-table-wrap">
+                      <table className="migration-table migration-dryrun-member-table">
+                        <thead>
+                          <tr>
+                            <th>Socio</th>
+                            <th>Estado</th>
+                            <th>Condición</th>
+                            <th>Obl. 2026</th>
+                            <th>Deuda 2026</th>
+                            <th>Deuda 2025</th>
+                            <th>Pagos</th>
+                            <th>Aplicaciones</th>
+                            <th>Historial</th>
+                            <th>Notas</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dryRun.members.map((member) => (
+                            <tr key={`dryrun-member-${member.row}`}>
+                              <td><strong>{member.nombre}</strong><small>{member.socioId}</small></td>
+                              <td>{member.estado}</td>
+                              <td>{member.categoria}</td>
+                              <td>{member.obligaciones2026}</td>
+                              <td>{money(member.deuda2026Plan)}</td>
+                              <td>{money(member.deuda2025Plan)}</td>
+                              <td>{member.pagos}</td>
+                              <td>{member.aplicaciones}</td>
+                              <td>{member.cambiosCategoria}</td>
+                              <td className="migration-observations">{member.notes.length ? member.notes.join(' ') : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <article className="panel migration-table-panel">
+                    <div className="panel-heading-row">
+                      <div>
+                        <p className="legacy-kicker">Documentos determinísticos</p>
+                        <h3>Detalle de escrituras futuras</h3>
+                      </div>
+                      <span className="status-badge neutral">Dry-run: no escribe</span>
+                    </div>
+                    <div className="migration-table-wrap migration-documents-wrap">
+                      <table className="migration-table migration-documents-table">
+                        <thead>
+                          <tr>
+                            <th>Colección</th>
+                            <th>ID determinístico</th>
+                            <th>Socio</th>
+                            <th>Resumen</th>
+                            <th>Fuente</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dryRun.documents.map((item) => (
+                            <tr key={`${item.collection}/${item.id}`}>
+                              <td><code>{item.collection}</code></td>
+                              <td><code>{item.id}</code></td>
+                              <td>{item.memberName}<small>Socio {item.memberNumber}</small></td>
+                              <td>{item.summary}</td>
+                              <td>Fila {item.sourceRow}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <div className="cuotas-info-box migration-next-step">
+                    <strong>Siguiente control:</strong> si este dry-run queda LISTO y sus totales son aprobados, el siguiente paso será implementar la escritura real como proceso idempotente y reanudable. Esa escritura seguirá requiriendo una aprobación explícita; este botón todavía no existe.
+                  </div>
+                </>
+              )}
+
+              {!dryRun && (
+                <div className="cuotas-info-box migration-next-step">
+                  <strong>Control previo a importación:</strong> 3B ya está conciliado. Generá el dry-run 3C para ver exactamente qué documentos se crearían antes de habilitar cualquier escritura real.
+                </div>
+              )}
             </>
           )}
         </>

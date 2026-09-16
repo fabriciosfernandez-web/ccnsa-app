@@ -13,6 +13,7 @@ import { db } from '../lib/firebase'
 
 export type MovimientoEstado = 'REGISTRADO' | 'ANULADO'
 export type MovimientoFinancieroTipo = 'INGRESO' | 'EGRESO'
+export type MovimientoOrigen = 'MANUAL' | 'ACTIVIDAD'
 
 export interface FinanzasActor {
   uid: string
@@ -27,6 +28,9 @@ interface MovimientoBase {
   concepto: string
   categoria: string
   importe: number
+  origen: MovimientoOrigen
+  actividadId?: string
+  actividadNombre?: string
   medioPago?: string
   referencia?: string
   estado: MovimientoEstado
@@ -43,10 +47,7 @@ interface MovimientoBase {
   updatedAt?: Timestamp
 }
 
-export interface IngresoManual extends MovimientoBase {
-  origen: 'MANUAL'
-}
-
+export interface IngresoManual extends MovimientoBase {}
 export interface Egreso extends MovimientoBase {}
 
 export interface CobroSocio {
@@ -129,6 +130,10 @@ function movimientoEstado(data: DocumentData): MovimientoEstado {
   return data.estado === 'ANULADO' ? 'ANULADO' : 'REGISTRADO'
 }
 
+function movimientoOrigen(data: DocumentData): MovimientoOrigen {
+  return data.origen === 'ACTIVIDAD' ? 'ACTIVIDAD' : 'MANUAL'
+}
+
 function mapMovimientoBase(snapshot: QueryDocumentSnapshot<DocumentData>): MovimientoBase {
   const data = snapshot.data()
   return {
@@ -137,6 +142,9 @@ function mapMovimientoBase(snapshot: QueryDocumentSnapshot<DocumentData>): Movim
     concepto: asString(data.concepto),
     categoria: asString(data.categoria) || 'OTRO',
     importe: asNumber(data.importe),
+    origen: movimientoOrigen(data),
+    actividadId: asString(data.actividadId) || undefined,
+    actividadNombre: asString(data.actividadNombre) || undefined,
     medioPago: asString(data.medioPago) || undefined,
     referencia: asString(data.referencia) || undefined,
     estado: movimientoEstado(data),
@@ -155,7 +163,7 @@ function mapMovimientoBase(snapshot: QueryDocumentSnapshot<DocumentData>): Movim
 }
 
 function mapIngreso(snapshot: QueryDocumentSnapshot<DocumentData>): IngresoManual {
-  return { ...mapMovimientoBase(snapshot), origen: 'MANUAL' }
+  return mapMovimientoBase(snapshot)
 }
 
 function mapEgreso(snapshot: QueryDocumentSnapshot<DocumentData>): Egreso {
@@ -245,7 +253,15 @@ export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
     .map(({ estado: _estado, ...item }) => item)
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id))
 
-  const financeActions = new Set(['INGRESO_CREATED', 'EGRESO_CREATED', 'INGRESO_VOIDED', 'EGRESO_VOIDED'])
+  const financeActions = new Set([
+    'INGRESO_CREATED',
+    'EGRESO_CREATED',
+    'INGRESO_VOIDED',
+    'EGRESO_VOIDED',
+    'ACTIVIDAD_INGRESO_CREATED',
+    'ACTIVIDAD_EGRESO_CREATED',
+    'ACTIVIDAD_MOVIMIENTO_VOIDED',
+  ])
   const audit = auditSnapshot.docs
     .map(mapAudit)
     .filter((item) => financeActions.has(item.action) && item.fechaMovimiento && inPeriodo(item.fechaMovimiento, periodo))
@@ -348,6 +364,7 @@ export async function createEgreso(input: NuevoMovimientoFinanciero, actor: Fina
     medioPago: input.medioPago?.trim() || null,
     referencia: input.referencia?.trim() || null,
     estado: 'REGISTRADO',
+    origen: 'MANUAL',
     ...actorSnapshot,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

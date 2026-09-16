@@ -5,6 +5,7 @@ import { ThemeProvider } from './theme/ThemeProvider'
 import './styles.css'
 import './admin-ui.css'
 import './theme.css'
+import './dark-theme.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

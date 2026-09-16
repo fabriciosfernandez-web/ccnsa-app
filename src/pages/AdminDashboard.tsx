@@ -43,7 +43,8 @@ export function AdminDashboard() {
         <article className="panel legacy-panel feature-card">
           <p className="legacy-kicker">Módulo</p>
           <h3>Finanzas</h3>
-          <p>Ingresos, egresos y trazabilidad de movimientos con una estructura normalizada.</p>
+          <p>Ingresos, egresos, balance mensual y trazabilidad sin duplicar cobros de socios.</p>
+          <Link className="button primary inline-button" to="/admin/finanzas">Abrir módulo</Link>
         </article>
         <article className="panel legacy-panel feature-card">
           <p className="legacy-kicker">Módulo</p>

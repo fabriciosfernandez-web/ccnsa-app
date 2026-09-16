@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
+import { appEnvironment } from '../lib/firebase'
 
 export function AppShell() {
   const { profile, logout } = useAuth()
@@ -14,6 +15,12 @@ export function AppShell() {
             <h1>CCNSA</h1>
           </div>
         </div>
+
+        {appEnvironment === 'dev' && (
+          <div className="status-badge neutral" title="Este ambiente usa Firebase DEV y datos de prueba">
+            DEV · ENTORNO DE PRUEBA
+          </div>
+        )}
 
         <nav className="nav-list" aria-label="Navegación principal">
           {profile?.role === 'SOCIO' ? (

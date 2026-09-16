@@ -14,7 +14,27 @@ function money(value?: number) {
 
 function formatDate(value?: { toDate: () => Date }) {
   if (!value) return '—'
-  return new Intl.DateTimeFormat('es-PY', { dateStyle: 'short', timeStyle: 'medium' }).format(value.toDate())
+  const date = value.toDate()
+  const day = new Intl.DateTimeFormat('es-PY', { day: 'numeric', month: 'short', year: 'numeric' }).format(date)
+  const time = new Intl.DateTimeFormat('es-PY', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
+  return `${day} · ${time}`
+}
+
+function formatExactDate(value?: { toDate: () => Date }) {
+  if (!value) return '—'
+  return new Intl.DateTimeFormat('es-PY', { dateStyle: 'medium', timeStyle: 'medium' }).format(value.toDate())
+}
+
+function eventDetail(item: AuditEvent) {
+  if (item.concepto) return item.concepto
+  if (item.entity === 'ingresos') return 'Ingreso financiero'
+  if (item.entity === 'egresos') return 'Egreso financiero'
+  if (item.entity === 'pagos') return 'Pago de socio'
+  if (item.entity === 'obligaciones') return 'Obligación'
+  if (item.entity === 'socios') return 'Socio'
+  if (item.entity === 'actividades') return 'Actividad'
+  if (item.entity === 'movimientos_actividad') return 'Movimiento de actividad'
+  return item.entity || 'Evento del sistema'
 }
 
 function csvCell(value: string | number) {
@@ -99,7 +119,7 @@ export function AdminAuditoriaPage() {
       [],
       ['Fecha/hora', 'Módulo', 'Acción', 'Usuario', 'Rol', 'Email', 'UID', 'Entidad', 'ID entidad', 'Concepto', 'Importe', 'Motivo'],
       ...filtered.map((item) => [
-        formatDate(item.createdAt),
+        formatExactDate(item.createdAt),
         item.modulo,
         item.actionLabel,
         item.actorNombre,
@@ -173,9 +193,9 @@ export function AdminAuditoriaPage() {
                     <tr className={expanded ? 'audit-row-expanded' : ''}>
                       <td className="audit-date">{formatDate(item.createdAt)}</td>
                       <td><span className="audit-module">{item.modulo}</span></td>
-                      <td><strong>{item.actionLabel}</strong><small className="audit-secondary">{item.action}</small></td>
+                      <td><strong>{item.actionLabel}</strong></td>
                       <td className="audit-user"><strong>{item.actorNombre}</strong><small>{item.actorRol || 'Sin rol registrado'}</small></td>
-                      <td><strong>{item.concepto || item.entityId || item.entity}</strong><small className="audit-secondary">{item.entity}{item.periodo ? ` · ${item.periodo}` : ''}</small></td>
+                      <td><strong>{eventDetail(item)}</strong><small className="audit-secondary">{item.periodo ? `Periodo ${item.periodo}` : item.modulo}</small></td>
                       <td className="audit-amount">{money(item.importe)}</td>
                       <td className="audit-reason">{item.motivo || '—'}</td>
                       <td className="audit-expand-cell"><button className="audit-expand-button" type="button" aria-expanded={expanded} aria-label={expanded ? 'Ocultar detalle técnico' : 'Ver detalle técnico'} onClick={() => setExpandedId(expanded ? null : item.id)}>{expanded ? '−' : '+'}</button></td>
@@ -184,12 +204,14 @@ export function AdminAuditoriaPage() {
                       <tr className="audit-detail-row">
                         <td colSpan={8}>
                           <div className="audit-detail-grid">
+                            <div><span>Fecha exacta</span><strong>{formatExactDate(item.createdAt)}</strong></div>
                             <div><span>Usuario</span><strong>{item.actorNombre}</strong><small>{item.actorEmail || 'Sin email registrado'}</small></div>
                             <div><span>UID</span><code>{item.actorUid || '—'}</code></div>
-                            <div><span>Entidad</span><strong>{item.entity || '—'}</strong><small>{item.entityId || 'Sin ID de entidad'}</small></div>
                             <div><span>Acción técnica</span><code>{item.action}</code></div>
+                            <div><span>Entidad</span><strong>{item.entity || '—'}</strong><small>{item.entityId || 'Sin ID de entidad'}</small></div>
                             {item.periodo && <div><span>Período</span><strong>{item.periodo}</strong></div>}
                             {item.socioId && <div><span>Socio ID</span><code>{item.socioId}</code></div>}
+                            {item.categoria && <div><span>Categoría</span><strong>{item.categoria}</strong></div>}
                           </div>
                         </td>
                       </tr>

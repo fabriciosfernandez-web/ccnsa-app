@@ -85,12 +85,14 @@ export function AdminFinanzasPage() {
   async function submitIngreso(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!user || !canWrite || saving) return
+    const form = event.currentTarget
+    const movement = movementFromForm(form)
     try {
       setSaving('INGRESO')
       setError('')
       setSuccess('')
-      await createIngresoManual(movementFromForm(event.currentTarget), user.uid)
-      event.currentTarget.reset()
+      await createIngresoManual(movement, user.uid)
+      form.reset()
       setSuccess('Ingreso registrado. El movimiento quedó trazado en audit_log.')
       await refresh()
     } catch (caught) {
@@ -103,12 +105,14 @@ export function AdminFinanzasPage() {
   async function submitEgreso(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!user || !canWrite || saving) return
+    const form = event.currentTarget
+    const movement = movementFromForm(form)
     try {
       setSaving('EGRESO')
       setError('')
       setSuccess('')
-      await createEgreso(movementFromForm(event.currentTarget), user.uid)
-      event.currentTarget.reset()
+      await createEgreso(movement, user.uid)
+      form.reset()
       setSuccess('Egreso registrado. El movimiento quedó trazado en audit_log.')
       await refresh()
     } catch (caught) {

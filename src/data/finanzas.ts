@@ -14,6 +14,13 @@ import { db } from '../lib/firebase'
 export type MovimientoEstado = 'REGISTRADO' | 'ANULADO'
 export type MovimientoFinancieroTipo = 'INGRESO' | 'EGRESO'
 
+export interface FinanzasActor {
+  uid: string
+  nombre: string
+  email?: string | null
+  rol?: string | null
+}
+
 interface MovimientoBase {
   id: string
   fecha: string
@@ -24,8 +31,13 @@ interface MovimientoBase {
   referencia?: string
   estado: MovimientoEstado
   actorUid?: string
+  actorNombre?: string
+  actorEmail?: string
+  actorRol?: string
   anulacionMotivo?: string
   anuladoPorUid?: string
+  anuladoPorNombre?: string
+  anuladoPorRol?: string
   anuladoAt?: Timestamp
   createdAt?: Timestamp
   updatedAt?: Timestamp
@@ -61,6 +73,9 @@ export interface FinanzasAuditEntry {
   entity: string
   entityId: string
   actorUid: string
+  actorNombre?: string
+  actorEmail?: string
+  actorRol?: string
   fechaMovimiento?: string
   concepto?: string
   categoria?: string
@@ -101,6 +116,15 @@ function asNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function actorFields(actor: FinanzasActor) {
+  return {
+    actorUid: actor.uid,
+    actorNombre: actor.nombre.trim() || actor.uid,
+    actorEmail: actor.email?.trim() || null,
+    actorRol: actor.rol?.trim() || null,
+  }
+}
+
 function movimientoEstado(data: DocumentData): MovimientoEstado {
   return data.estado === 'ANULADO' ? 'ANULADO' : 'REGISTRADO'
 }
@@ -117,8 +141,13 @@ function mapMovimientoBase(snapshot: QueryDocumentSnapshot<DocumentData>): Movim
     referencia: asString(data.referencia) || undefined,
     estado: movimientoEstado(data),
     actorUid: asString(data.actorUid) || undefined,
+    actorNombre: asString(data.actorNombre) || undefined,
+    actorEmail: asString(data.actorEmail) || undefined,
+    actorRol: asString(data.actorRol) || undefined,
     anulacionMotivo: asString(data.anulacionMotivo) || undefined,
     anuladoPorUid: asString(data.anuladoPorUid) || undefined,
+    anuladoPorNombre: asString(data.anuladoPorNombre) || undefined,
+    anuladoPorRol: asString(data.anuladoPorRol) || undefined,
     anuladoAt: data.anuladoAt as Timestamp | undefined,
     createdAt: data.createdAt as Timestamp | undefined,
     updatedAt: data.updatedAt as Timestamp | undefined,
@@ -149,6 +178,9 @@ function mapAudit(snapshot: QueryDocumentSnapshot<DocumentData>): FinanzasAuditE
     entity: asString(data.entity),
     entityId: asString(data.entityId),
     actorUid: asString(data.actorUid),
+    actorNombre: asString(data.actorNombre) || undefined,
+    actorEmail: asString(data.actorEmail) || undefined,
+    actorRol: asString(data.actorRol) || undefined,
     fechaMovimiento: asString(data.fechaMovimiento) || asString(data.fecha) || undefined,
     concepto: asString(data.concepto) || undefined,
     categoria: asString(data.categoria) || undefined,
@@ -160,17 +192,28 @@ function mapAudit(snapshot: QueryDocumentSnapshot<DocumentData>): FinanzasAuditE
 
 export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
   const database = requireDb()
-  const [ingresosSnapshot, egresosSnapshot, pagosSnapshot, sociosSnapshot, auditSnapshot] = await Promise.all([
+  const [ingresosSnapshot, egresosSnapshot, pagosSnapshot, sociosSnapshot, auditSnapshot, usersSnapshot] = await Promise.all([
     getDocs(collection(database, 'ingresos')),
     getDocs(collection(database, 'egresos')),
     getDocs(collection(database, 'pagos')),
     getDocs(collection(database, 'socios')),
     getDocs(collection(database, 'audit_log')),
+    getDocs(collection(database, 'users')),
   ])
 
   const socios = new Map<string, string>()
   for (const socio of sociosSnapshot.docs) {
     socios.set(socio.id, asString(socio.data().nombre) || socio.id)
+  }
+
+  const usuarios = new Map<string, { nombre?: string; email?: string; rol?: string }>()
+  for (const usuario of usersSnapshot.docs) {
+    const data = usuario.data()
+    usuarios.set(usuario.id, {
+      nombre: asString(data.displayName) || asString(data.nombre) || undefined,
+      email: asString(data.email) || undefined,
+      rol: asString(data.role) || undefined,
+    })
   }
 
   const ingresosManuales = ingresosSnapshot.docs
@@ -206,6 +249,15 @@ export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
   const audit = auditSnapshot.docs
     .map(mapAudit)
     .filter((item) => financeActions.has(item.action) && item.fechaMovimiento && inPeriodo(item.fechaMovimiento, periodo))
+    .map((item) => {
+      const currentUser = usuarios.get(item.actorUid)
+      return {
+        ...item,
+        actorNombre: item.actorNombre || currentUser?.nombre || item.actorUid,
+        actorEmail: item.actorEmail || currentUser?.email,
+        actorRol: item.actorRol || currentUser?.rol,
+      }
+    })
     .sort((a, b) => {
       const aMillis = a.createdAt?.toMillis() ?? 0
       const bMillis = b.createdAt?.toMillis() ?? 0
@@ -244,12 +296,13 @@ function validateMovimiento(input: NuevoMovimientoFinanciero) {
   if (!Number.isFinite(input.importe) || input.importe <= 0) throw new Error('El importe debe ser mayor a cero.')
 }
 
-export async function createIngresoManual(input: NuevoMovimientoFinanciero, actorUid: string) {
+export async function createIngresoManual(input: NuevoMovimientoFinanciero, actor: FinanzasActor) {
   validateMovimiento(input)
   const database = requireDb()
   const ingresoRef = doc(collection(database, 'ingresos'))
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
+  const actorSnapshot = actorFields(actor)
 
   batch.set(ingresoRef, {
     ...input,
@@ -259,13 +312,13 @@ export async function createIngresoManual(input: NuevoMovimientoFinanciero, acto
     referencia: input.referencia?.trim() || null,
     estado: 'REGISTRADO',
     origen: 'MANUAL',
-    actorUid,
+    ...actorSnapshot,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
 
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'INGRESO_CREATED',
     entity: 'ingresos',
     entityId: ingresoRef.id,
@@ -280,12 +333,13 @@ export async function createIngresoManual(input: NuevoMovimientoFinanciero, acto
   return ingresoRef.id
 }
 
-export async function createEgreso(input: NuevoMovimientoFinanciero, actorUid: string) {
+export async function createEgreso(input: NuevoMovimientoFinanciero, actor: FinanzasActor) {
   validateMovimiento(input)
   const database = requireDb()
   const egresoRef = doc(collection(database, 'egresos'))
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
+  const actorSnapshot = actorFields(actor)
 
   batch.set(egresoRef, {
     ...input,
@@ -294,13 +348,13 @@ export async function createEgreso(input: NuevoMovimientoFinanciero, actorUid: s
     medioPago: input.medioPago?.trim() || null,
     referencia: input.referencia?.trim() || null,
     estado: 'REGISTRADO',
-    actorUid,
+    ...actorSnapshot,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
 
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'EGRESO_CREATED',
     entity: 'egresos',
     entityId: egresoRef.id,
@@ -319,7 +373,7 @@ export async function anularMovimientoFinanciero(
   tipo: MovimientoFinancieroTipo,
   movimientoId: string,
   motivo: string,
-  actorUid: string,
+  actor: FinanzasActor,
 ) {
   const cleanReason = motivo.trim()
   if (cleanReason.length < 5) throw new Error('Indicá un motivo de anulación de al menos 5 caracteres.')
@@ -328,6 +382,7 @@ export async function anularMovimientoFinanciero(
   const collectionName = tipo === 'INGRESO' ? 'ingresos' : 'egresos'
   const movementRef = doc(database, collectionName, movimientoId)
   const auditRef = doc(collection(database, 'audit_log'))
+  const actorSnapshot = actorFields(actor)
 
   await runTransaction(database, async (transaction) => {
     const snapshot = await transaction.get(movementRef)
@@ -339,13 +394,15 @@ export async function anularMovimientoFinanciero(
     transaction.update(movementRef, {
       estado: 'ANULADO',
       anulacionMotivo: cleanReason,
-      anuladoPorUid: actorUid,
+      anuladoPorUid: actor.uid,
+      anuladoPorNombre: actorSnapshot.actorNombre,
+      anuladoPorRol: actorSnapshot.actorRol,
       anuladoAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
 
     transaction.set(auditRef, {
-      actorUid,
+      ...actorSnapshot,
       action: tipo === 'INGRESO' ? 'INGRESO_VOIDED' : 'EGRESO_VOIDED',
       entity: collectionName,
       entityId: movimientoId,

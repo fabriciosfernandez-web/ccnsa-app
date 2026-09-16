@@ -168,7 +168,7 @@ export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
       return {
         id: snapshot.id,
         socioId,
-        socioNombre: socios.get(socioId) ?? socioId || 'Socio',
+        socioNombre: socios.get(socioId) ?? (socioId || 'Socio'),
         fecha: fechaPago(data),
         importe: asNumber(data.importe),
         medioPago: asString(data.medioPago) || undefined,

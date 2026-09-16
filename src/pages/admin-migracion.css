@@ -189,6 +189,38 @@
   white-space: nowrap;
 }
 
+.migration-dryrun-launch {
+  border-top: 3px solid #d9bf72;
+}
+
+.migration-dryrun-status code {
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.migration-blocked-copy {
+  display: block;
+  margin-top: 8px;
+  color: #8a5a2b;
+}
+
+.migration-dryrun-member-table {
+  min-width: 1250px;
+}
+
+.migration-documents-wrap {
+  max-height: 520px;
+}
+
+.migration-documents-table {
+  min-width: 1180px;
+}
+
+.migration-documents-table code {
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
 .migration-next-step {
   margin-top: 0;
 }

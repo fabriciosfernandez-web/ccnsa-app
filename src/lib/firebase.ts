@@ -13,6 +13,15 @@ const devFirebaseConfig = {
   appId: '1:97068608166:web:b6ba40ec94e8736157e267',
 }
 
+export type AppEnvironment = 'dev' | 'prod'
+
+const rawEnvironment = String(import.meta.env.VITE_APP_ENV || 'dev').trim().toLowerCase()
+if (rawEnvironment !== 'dev' && rawEnvironment !== 'prod') {
+  throw new Error(`VITE_APP_ENV inválido: ${rawEnvironment}. Use dev o prod.`)
+}
+
+export const appEnvironment = rawEnvironment as AppEnvironment
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || devFirebaseConfig.apiKey,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || devFirebaseConfig.authDomain,
@@ -20,6 +29,14 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || devFirebaseConfig.storageBucket,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || devFirebaseConfig.messagingSenderId,
   appId: import.meta.env.VITE_FIREBASE_APP_ID || devFirebaseConfig.appId,
+}
+
+const expectedProjectId = appEnvironment === 'prod' ? 'ccnsa-web-prod' : 'ccnsa-web-dev'
+if (firebaseConfig.projectId !== expectedProjectId) {
+  throw new Error(
+    `Configuración Firebase cruzada: VITE_APP_ENV=${appEnvironment} exige projectId=${expectedProjectId}, `
+      + `pero se recibió ${firebaseConfig.projectId || '(vacío)'}.`,
+  )
 }
 
 const requiredConfig = [

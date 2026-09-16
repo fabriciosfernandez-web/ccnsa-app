@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  runTransaction,
   serverTimestamp,
   writeBatch,
   type DocumentData,
@@ -11,8 +12,9 @@ import {
 import { db } from '../lib/firebase'
 
 export type MovimientoEstado = 'REGISTRADO' | 'ANULADO'
+export type MovimientoFinancieroTipo = 'INGRESO' | 'EGRESO'
 
-export interface IngresoManual {
+interface MovimientoBase {
   id: string
   fecha: string
   concepto: string
@@ -21,25 +23,19 @@ export interface IngresoManual {
   medioPago?: string
   referencia?: string
   estado: MovimientoEstado
+  actorUid?: string
+  anulacionMotivo?: string
+  anuladoPorUid?: string
+  anuladoAt?: Timestamp
+  createdAt?: Timestamp
+  updatedAt?: Timestamp
+}
+
+export interface IngresoManual extends MovimientoBase {
   origen: 'MANUAL'
-  actorUid?: string
-  createdAt?: Timestamp
-  updatedAt?: Timestamp
 }
 
-export interface Egreso {
-  id: string
-  fecha: string
-  concepto: string
-  categoria: string
-  importe: number
-  medioPago?: string
-  referencia?: string
-  estado: MovimientoEstado
-  actorUid?: string
-  createdAt?: Timestamp
-  updatedAt?: Timestamp
-}
+export interface Egreso extends MovimientoBase {}
 
 export interface CobroSocio {
   id: string
@@ -59,11 +55,26 @@ export interface FinanzasTotales {
   resultado: number
 }
 
+export interface FinanzasAuditEntry {
+  id: string
+  action: string
+  entity: string
+  entityId: string
+  actorUid: string
+  fechaMovimiento?: string
+  concepto?: string
+  categoria?: string
+  importe?: number
+  motivo?: string
+  createdAt?: Timestamp
+}
+
 export interface FinanzasSnapshot {
   periodo: string
   ingresosManuales: IngresoManual[]
   egresos: Egreso[]
   cobrosSocios: CobroSocio[]
+  audit: FinanzasAuditEntry[]
   totales: FinanzasTotales
 }
 
@@ -94,7 +105,7 @@ function movimientoEstado(data: DocumentData): MovimientoEstado {
   return data.estado === 'ANULADO' ? 'ANULADO' : 'REGISTRADO'
 }
 
-function mapIngreso(snapshot: QueryDocumentSnapshot<DocumentData>): IngresoManual {
+function mapMovimientoBase(snapshot: QueryDocumentSnapshot<DocumentData>): MovimientoBase {
   const data = snapshot.data()
   return {
     id: snapshot.id,
@@ -105,28 +116,21 @@ function mapIngreso(snapshot: QueryDocumentSnapshot<DocumentData>): IngresoManua
     medioPago: asString(data.medioPago) || undefined,
     referencia: asString(data.referencia) || undefined,
     estado: movimientoEstado(data),
-    origen: 'MANUAL',
     actorUid: asString(data.actorUid) || undefined,
+    anulacionMotivo: asString(data.anulacionMotivo) || undefined,
+    anuladoPorUid: asString(data.anuladoPorUid) || undefined,
+    anuladoAt: data.anuladoAt as Timestamp | undefined,
     createdAt: data.createdAt as Timestamp | undefined,
     updatedAt: data.updatedAt as Timestamp | undefined,
   }
 }
 
+function mapIngreso(snapshot: QueryDocumentSnapshot<DocumentData>): IngresoManual {
+  return { ...mapMovimientoBase(snapshot), origen: 'MANUAL' }
+}
+
 function mapEgreso(snapshot: QueryDocumentSnapshot<DocumentData>): Egreso {
-  const data = snapshot.data()
-  return {
-    id: snapshot.id,
-    fecha: asString(data.fecha),
-    concepto: asString(data.concepto),
-    categoria: asString(data.categoria) || 'OTRO',
-    importe: asNumber(data.importe),
-    medioPago: asString(data.medioPago) || undefined,
-    referencia: asString(data.referencia) || undefined,
-    estado: movimientoEstado(data),
-    actorUid: asString(data.actorUid) || undefined,
-    createdAt: data.createdAt as Timestamp | undefined,
-    updatedAt: data.updatedAt as Timestamp | undefined,
-  }
+  return mapMovimientoBase(snapshot)
 }
 
 function fechaPago(data: DocumentData) {
@@ -137,13 +141,31 @@ function inPeriodo(fecha: string, periodo: string) {
   return Boolean(fecha) && fecha.startsWith(periodo)
 }
 
+function mapAudit(snapshot: QueryDocumentSnapshot<DocumentData>): FinanzasAuditEntry {
+  const data = snapshot.data()
+  return {
+    id: snapshot.id,
+    action: asString(data.action),
+    entity: asString(data.entity),
+    entityId: asString(data.entityId),
+    actorUid: asString(data.actorUid),
+    fechaMovimiento: asString(data.fechaMovimiento) || asString(data.fecha) || undefined,
+    concepto: asString(data.concepto) || undefined,
+    categoria: asString(data.categoria) || undefined,
+    importe: Number.isFinite(Number(data.importe)) ? Number(data.importe) : undefined,
+    motivo: asString(data.motivo) || undefined,
+    createdAt: data.createdAt as Timestamp | undefined,
+  }
+}
+
 export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
   const database = requireDb()
-  const [ingresosSnapshot, egresosSnapshot, pagosSnapshot, sociosSnapshot] = await Promise.all([
+  const [ingresosSnapshot, egresosSnapshot, pagosSnapshot, sociosSnapshot, auditSnapshot] = await Promise.all([
     getDocs(collection(database, 'ingresos')),
     getDocs(collection(database, 'egresos')),
     getDocs(collection(database, 'pagos')),
     getDocs(collection(database, 'socios')),
+    getDocs(collection(database, 'audit_log')),
   ])
 
   const socios = new Map<string, string>()
@@ -153,12 +175,12 @@ export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
 
   const ingresosManuales = ingresosSnapshot.docs
     .map(mapIngreso)
-    .filter((item) => item.estado !== 'ANULADO' && inPeriodo(item.fecha, periodo))
+    .filter((item) => inPeriodo(item.fecha, periodo))
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id))
 
   const egresos = egresosSnapshot.docs
     .map(mapEgreso)
-    .filter((item) => item.estado !== 'ANULADO' && inPeriodo(item.fecha, periodo))
+    .filter((item) => inPeriodo(item.fecha, periodo))
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id))
 
   const cobrosSocios: CobroSocio[] = pagosSnapshot.docs
@@ -180,9 +202,23 @@ export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
     .map(({ estado: _estado, ...item }) => item)
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id))
 
+  const financeActions = new Set(['INGRESO_CREATED', 'EGRESO_CREATED', 'INGRESO_VOIDED', 'EGRESO_VOIDED'])
+  const audit = auditSnapshot.docs
+    .map(mapAudit)
+    .filter((item) => financeActions.has(item.action) && item.fechaMovimiento && inPeriodo(item.fechaMovimiento, periodo))
+    .sort((a, b) => {
+      const aMillis = a.createdAt?.toMillis() ?? 0
+      const bMillis = b.createdAt?.toMillis() ?? 0
+      return bMillis - aMillis || b.id.localeCompare(a.id)
+    })
+
   const cobrosSociosTotal = cobrosSocios.reduce((sum, item) => sum + item.importe, 0)
-  const otrosIngresos = ingresosManuales.reduce((sum, item) => sum + item.importe, 0)
-  const egresosTotales = egresos.reduce((sum, item) => sum + item.importe, 0)
+  const otrosIngresos = ingresosManuales
+    .filter((item) => item.estado === 'REGISTRADO')
+    .reduce((sum, item) => sum + item.importe, 0)
+  const egresosTotales = egresos
+    .filter((item) => item.estado === 'REGISTRADO')
+    .reduce((sum, item) => sum + item.importe, 0)
   const ingresosTotales = cobrosSociosTotal + otrosIngresos
 
   return {
@@ -190,6 +226,7 @@ export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
     ingresosManuales,
     egresos,
     cobrosSocios,
+    audit,
     totales: {
       cobrosSocios: cobrosSociosTotal,
       otrosIngresos,
@@ -233,6 +270,7 @@ export async function createIngresoManual(input: NuevoMovimientoFinanciero, acto
     entity: 'ingresos',
     entityId: ingresoRef.id,
     fecha: input.fecha,
+    concepto: input.concepto.trim(),
     categoria: input.categoria.trim(),
     importe: input.importe,
     createdAt: serverTimestamp(),
@@ -267,6 +305,7 @@ export async function createEgreso(input: NuevoMovimientoFinanciero, actorUid: s
     entity: 'egresos',
     entityId: egresoRef.id,
     fecha: input.fecha,
+    concepto: input.concepto.trim(),
     categoria: input.categoria.trim(),
     importe: input.importe,
     createdAt: serverTimestamp(),
@@ -274,4 +313,48 @@ export async function createEgreso(input: NuevoMovimientoFinanciero, actorUid: s
 
   await batch.commit()
   return egresoRef.id
+}
+
+export async function anularMovimientoFinanciero(
+  tipo: MovimientoFinancieroTipo,
+  movimientoId: string,
+  motivo: string,
+  actorUid: string,
+) {
+  const cleanReason = motivo.trim()
+  if (cleanReason.length < 5) throw new Error('Indicá un motivo de anulación de al menos 5 caracteres.')
+
+  const database = requireDb()
+  const collectionName = tipo === 'INGRESO' ? 'ingresos' : 'egresos'
+  const movementRef = doc(database, collectionName, movimientoId)
+  const auditRef = doc(collection(database, 'audit_log'))
+
+  await runTransaction(database, async (transaction) => {
+    const snapshot = await transaction.get(movementRef)
+    if (!snapshot.exists()) throw new Error('El movimiento ya no existe.')
+
+    const data = snapshot.data()
+    if (movimientoEstado(data) === 'ANULADO') throw new Error('El movimiento ya se encuentra anulado.')
+
+    transaction.update(movementRef, {
+      estado: 'ANULADO',
+      anulacionMotivo: cleanReason,
+      anuladoPorUid: actorUid,
+      anuladoAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+
+    transaction.set(auditRef, {
+      actorUid,
+      action: tipo === 'INGRESO' ? 'INGRESO_VOIDED' : 'EGRESO_VOIDED',
+      entity: collectionName,
+      entityId: movimientoId,
+      fechaMovimiento: asString(data.fecha),
+      concepto: asString(data.concepto),
+      categoria: asString(data.categoria),
+      importe: asNumber(data.importe),
+      motivo: cleanReason,
+      createdAt: serverTimestamp(),
+    })
+  })
 }

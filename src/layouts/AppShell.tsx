@@ -24,40 +24,57 @@ export function AppShell() {
 
         <nav className="nav-list" aria-label="Navegación principal">
           {profile?.role === 'SOCIO' ? (
-            <>
+            <div className="nav-group">
+              <span className="nav-group-label">Portal del socio</span>
               <NavLink to="/socio" end className={({ isActive }) => (isActive ? 'active' : '')}>
                 Mi estado de cuenta
               </NavLink>
               <NavLink to="/socio/notificaciones" className={({ isActive }) => (isActive ? 'active' : '')}>
                 Notificaciones
               </NavLink>
-            </>
+            </div>
           ) : (
             <>
-              <NavLink to="/admin" end className={({ isActive }) => (isActive ? 'active' : '')}>
-                Panel de gestión
-              </NavLink>
-              <NavLink to="/admin/socios" className={({ isActive }) => (isActive ? 'active' : '')}>
-                Socios y cuotas
-              </NavLink>
-              <NavLink to="/admin/cuotas" className={({ isActive }) => (isActive ? 'active' : '')}>
-                Tarifas y generación
-              </NavLink>
-              <NavLink to="/admin/reglas-cobro" className={({ isActive }) => (isActive ? 'active' : '')}>
-                Reglas especiales
-              </NavLink>
-              <NavLink to="/admin/finanzas" className={({ isActive }) => (isActive ? 'active' : '')}>
-                Finanzas
-              </NavLink>
+              <div className="nav-group">
+                <span className="nav-group-label">Gestión</span>
+                <NavLink to="/admin" end className={({ isActive }) => (isActive ? 'active' : '')}>
+                  Panel de gestión
+                </NavLink>
+                <NavLink to="/admin/socios" className={({ isActive }) => (isActive ? 'active' : '')}>
+                  Socios y cuotas
+                </NavLink>
+                <NavLink to="/admin/finanzas" className={({ isActive }) => (isActive ? 'active' : '')}>
+                  Finanzas
+                </NavLink>
+              </div>
+
+              <div className="nav-group">
+                <span className="nav-group-label">Configuración</span>
+                <NavLink to="/admin/cuotas" className={({ isActive }) => (isActive ? 'active' : '')}>
+                  Tarifas y generación
+                </NavLink>
+                <NavLink to="/admin/reglas-cobro" className={({ isActive }) => (isActive ? 'active' : '')}>
+                  Reglas especiales
+                </NavLink>
+              </div>
+
+              <div className="nav-group">
+                <span className="nav-group-label">Control</span>
+                <NavLink to="/admin/auditoria" className={({ isActive }) => (isActive ? 'active' : '')}>
+                  Auditoría
+                </NavLink>
+              </div>
+
               {profile?.role === 'ADMIN' && (
-                <>
+                <div className="nav-group nav-group-tools">
+                  <span className="nav-group-label">Herramientas DEV</span>
                   <NavLink to="/admin/migracion" end className={({ isActive }) => (isActive ? 'active' : '')}>
                     Migración 2026
                   </NavLink>
                   <NavLink to="/admin/migracion/preflight" className={({ isActive }) => (isActive ? 'active' : '')}>
-                    Preflight 3D
+                    Preflight de migración
                   </NavLink>
-                </>
+                </div>
               )}
             </>
           )}

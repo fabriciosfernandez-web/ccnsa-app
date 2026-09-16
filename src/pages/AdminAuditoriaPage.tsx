@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { AdminPageHeader } from '../components/AdminPageHeader'
 import { loadAuditEvents, type AuditEvent } from '../data/auditoria'
 import './admin-auditoria.css'
@@ -29,6 +29,7 @@ export function AdminAuditoriaPage() {
   const [moduleFilter, setModuleFilter] = useState('TODOS')
   const [roleFilter, setRoleFilter] = useState('TODOS')
   const [search, setSearch] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -68,6 +69,7 @@ export function AdminAuditoriaPage() {
         item.actorNombre,
         item.actorEmail,
         item.actorRol,
+        item.actorUid,
         item.concepto,
         item.entity,
         item.entityId,
@@ -136,8 +138,8 @@ export function AdminAuditoriaPage() {
       {error && <div className="notice error">{error}</div>}
 
       <div className="metric-grid legacy-metric-grid audit-metrics">
-        <article className="metric-card legacy-metric-card"><span>Eventos registrados</span><strong>{events.length}</strong><small>Historial disponible en audit_log.</small></article>
-        <article className="metric-card legacy-metric-card"><span>Usuarios con actividad</span><strong>{uniqueActors}</strong><small>Identificados por UID y snapshot de usuario.</small></article>
+        <article className="metric-card legacy-metric-card"><span>Eventos registrados</span><strong>{events.length}</strong><small>Historial auditable disponible.</small></article>
+        <article className="metric-card legacy-metric-card"><span>Usuarios con actividad</span><strong>{uniqueActors}</strong><small>Actores identificados en el registro.</small></article>
         <article className="metric-card legacy-metric-card"><span>Eventos de hoy</span><strong>{todayCount}</strong><small>Según fecha y hora de registro.</small></article>
       </div>
 
@@ -158,24 +160,43 @@ export function AdminAuditoriaPage() {
 
         <div className="legacy-table-wrap audit-table-wrap">
           <table className="legacy-table audit-table">
-            <thead><tr><th>Fecha / hora</th><th>Módulo</th><th>Acción</th><th>Usuario</th><th>Rol</th><th>Detalle</th><th>Importe</th><th>Motivo</th></tr></thead>
+            <thead><tr><th>Fecha / hora</th><th>Módulo</th><th>Acción</th><th>Usuario</th><th>Detalle</th><th>Importe</th><th>Motivo</th><th aria-label="Más detalle" /></tr></thead>
             <tbody>
               {loading ? (
                 <tr><td colSpan={8}>Cargando registro de auditoría…</td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={8}>No hay eventos que coincidan con los filtros.</td></tr>
-              ) : filtered.map((item) => (
-                <tr key={item.id}>
-                  <td>{formatDate(item.createdAt)}</td>
-                  <td><span className="audit-module">{item.modulo}</span></td>
-                  <td><strong>{item.actionLabel}</strong><small className="audit-secondary">{item.action}</small></td>
-                  <td className="audit-user"><strong>{item.actorNombre}</strong>{item.actorEmail && <small>{item.actorEmail}</small>}{item.actorUid && <small>UID: {item.actorUid}</small>}</td>
-                  <td>{item.actorRol || '—'}</td>
-                  <td><strong>{item.concepto || item.entityId || item.entity}</strong><small className="audit-secondary">{item.entity}{item.periodo ? ` · ${item.periodo}` : ''}</small></td>
-                  <td>{money(item.importe)}</td>
-                  <td>{item.motivo || '—'}</td>
-                </tr>
-              ))}
+              ) : filtered.map((item) => {
+                const expanded = expandedId === item.id
+                return (
+                  <Fragment key={item.id}>
+                    <tr className={expanded ? 'audit-row-expanded' : ''}>
+                      <td className="audit-date">{formatDate(item.createdAt)}</td>
+                      <td><span className="audit-module">{item.modulo}</span></td>
+                      <td><strong>{item.actionLabel}</strong><small className="audit-secondary">{item.action}</small></td>
+                      <td className="audit-user"><strong>{item.actorNombre}</strong><small>{item.actorRol || 'Sin rol registrado'}</small></td>
+                      <td><strong>{item.concepto || item.entityId || item.entity}</strong><small className="audit-secondary">{item.entity}{item.periodo ? ` · ${item.periodo}` : ''}</small></td>
+                      <td className="audit-amount">{money(item.importe)}</td>
+                      <td className="audit-reason">{item.motivo || '—'}</td>
+                      <td className="audit-expand-cell"><button className="audit-expand-button" type="button" aria-expanded={expanded} aria-label={expanded ? 'Ocultar detalle técnico' : 'Ver detalle técnico'} onClick={() => setExpandedId(expanded ? null : item.id)}>{expanded ? '−' : '+'}</button></td>
+                    </tr>
+                    {expanded && (
+                      <tr className="audit-detail-row">
+                        <td colSpan={8}>
+                          <div className="audit-detail-grid">
+                            <div><span>Usuario</span><strong>{item.actorNombre}</strong><small>{item.actorEmail || 'Sin email registrado'}</small></div>
+                            <div><span>UID</span><code>{item.actorUid || '—'}</code></div>
+                            <div><span>Entidad</span><strong>{item.entity || '—'}</strong><small>{item.entityId || 'Sin ID de entidad'}</small></div>
+                            <div><span>Acción técnica</span><code>{item.action}</code></div>
+                            {item.periodo && <div><span>Período</span><strong>{item.periodo}</strong></div>}
+                            {item.socioId && <div><span>Socio ID</span><code>{item.socioId}</code></div>}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>

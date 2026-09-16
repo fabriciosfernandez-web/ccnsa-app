@@ -46,6 +46,9 @@ export function AppShell() {
               <NavLink to="/admin/reglas-cobro" className={({ isActive }) => (isActive ? 'active' : '')}>
                 Reglas especiales
               </NavLink>
+              <NavLink to="/admin/finanzas" className={({ isActive }) => (isActive ? 'active' : '')}>
+                Finanzas
+              </NavLink>
               {profile?.role === 'ADMIN' && (
                 <>
                   <NavLink to="/admin/migracion" end className={({ isActive }) => (isActive ? 'active' : '')}>

@@ -31,6 +31,12 @@
   border-bottom: 1px solid #dce4ea;
 }
 
+/* El entorno ya se identifica en el sidebar: evitamos repetir etiquetas de fase/DEV en cada módulo. */
+.legacy-page-header > div:first-child > .legacy-kicker,
+.legacy-page-header > .status-badge.neutral {
+  display: none;
+}
+
 .admin-page-header-copy,
 .legacy-page-header > div:first-child {
   max-width: 780px;

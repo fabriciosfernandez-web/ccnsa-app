@@ -1,4 +1,4 @@
-name: Firebase Hosting Live
+name: Firebase Hosting DEV Live
 
 on:
   push:
@@ -9,8 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  build_and_deploy:
+  build_and_deploy_dev:
     runs-on: ubuntu-latest
+    env:
+      VITE_APP_ENV: dev
     steps:
       - uses: actions/checkout@v4
 
@@ -21,10 +23,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build
+      - name: Build DEV
         run: npm run build
 
-      - name: Deploy live to Firebase Hosting
+      - name: Deploy live to Firebase Hosting DEV
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCNSA_WEB_DEV }}

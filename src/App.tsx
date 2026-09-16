@@ -5,6 +5,7 @@ import { AppShell } from './layouts/AppShell'
 import { AdminCuotasPage } from './pages/AdminCuotasPage'
 import { AdminDashboard } from './pages/AdminDashboard'
 import { AdminMigracionPage } from './pages/AdminMigracionPage'
+import { AdminMigracionPreflightPage } from './pages/AdminMigracionPreflightPage'
 import { AdminReglasCobroPage } from './pages/AdminReglasCobroPage'
 import { AdminSociosPage } from './pages/AdminSociosPage'
 import { ForbiddenPage } from './pages/ForbiddenPage'
@@ -45,6 +46,7 @@ export default function App() {
               <Route path="/admin/reglas-cobro" element={<AdminReglasCobroPage />} />
               <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
                 <Route path="/admin/migracion" element={<AdminMigracionPage />} />
+                <Route path="/admin/migracion/preflight" element={<AdminMigracionPreflightPage />} />
               </Route>
             </Route>
           </Route>

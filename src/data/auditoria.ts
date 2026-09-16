@@ -39,11 +39,11 @@ function asOptionalNumber(value: unknown) {
 function moduleFrom(data: DocumentData, action: string, entity: string) {
   const key = `${action} ${entity}`.toUpperCase()
   if (/MIGRATION|MIGRACION/.test(key)) return 'Migración'
+  if (/ACTIVIDAD/.test(key)) return 'Actividades'
   if (/INGRESO|EGRESO|FINAN/.test(key)) return 'Finanzas'
   if (/TARIFA|REGLA|EXCEPCION|CUOTA|OBLIGACION|PAGO|APLICACION/.test(key)) return 'Cuotas y cobros'
   if (/SOCIO|CATEGORIA/.test(key)) return 'Socios'
   if (/NOTIF/.test(key)) return 'Notificaciones'
-  if (/ACTIVIDAD/.test(key)) return 'Actividades'
   return 'Sistema'
 }
 
@@ -53,6 +53,11 @@ function humanizeAction(action: string) {
     EGRESO_CREATED: 'Egreso registrado',
     INGRESO_VOIDED: 'Ingreso anulado',
     EGRESO_VOIDED: 'Egreso anulado',
+    ACTIVIDAD_CREATED: 'Actividad creada',
+    ACTIVIDAD_STATUS_CHANGED: 'Estado de actividad modificado',
+    ACTIVIDAD_INGRESO_CREATED: 'Ingreso de actividad registrado',
+    ACTIVIDAD_EGRESO_CREATED: 'Egreso de actividad registrado',
+    ACTIVIDAD_MOVIMIENTO_VOIDED: 'Movimiento de actividad anulado',
     OBLIGACION_CREATED: 'Obligación creada',
     PAGO_CREATED: 'Pago registrado',
     TARIFA_CREATED: 'Tarifa creada',

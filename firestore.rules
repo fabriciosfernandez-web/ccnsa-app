@@ -61,6 +61,60 @@ service cloud.firestore {
           'estado',
           'anulacionMotivo',
           'anuladoPorUid',
+          'anuladoPorNombre',
+          'anuladoPorRol',
+          'anuladoAt',
+          'updatedAt'
+        ]);
+    }
+
+    function canCreateActividad() {
+      return (isAdmin() || isTreasury())
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() > 0
+        && request.resource.data.fechaInicio is string
+        && request.resource.data.estado in ['PLANIFICADA', 'ACTIVA'];
+    }
+
+    function canUpdateActividad() {
+      return (isAdmin() || isTreasury())
+        && resource.data.estado in ['PLANIFICADA', 'ACTIVA']
+        && request.resource.data.estado in ['PLANIFICADA', 'ACTIVA', 'CERRADA', 'CANCELADA']
+        && request.resource.data.updatedByUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estado',
+          'updatedAt',
+          'updatedByUid',
+          'updatedByNombre'
+        ]);
+    }
+
+    function canCreateActividadMovement() {
+      return (isAdmin() || isTreasury())
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.actividadId is string
+        && request.resource.data.tipo in ['INGRESO', 'EGRESO']
+        && request.resource.data.importe is number
+        && request.resource.data.importe > 0
+        && request.resource.data.estado == 'REGISTRADO'
+        && request.resource.data.financeCollection in ['ingresos', 'egresos']
+        && request.resource.data.financeMovementId is string;
+    }
+
+    function canVoidActividadMovement() {
+      return (isAdmin() || isTreasury())
+        && resource.data.estado == 'REGISTRADO'
+        && request.resource.data.estado == 'ANULADO'
+        && request.resource.data.anuladoPorUid == request.auth.uid
+        && request.resource.data.anulacionMotivo is string
+        && request.resource.data.anulacionMotivo.size() >= 5
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estado',
+          'anulacionMotivo',
+          'anuladoPorUid',
+          'anuladoPorNombre',
+          'anuladoPorRol',
           'anuladoAt',
           'updatedAt'
         ]);
@@ -122,12 +176,16 @@ service cloud.firestore {
 
     match /actividades/{actividadId} {
       allow read: if isStaff();
-      allow create, update, delete: if isAdmin() || isTreasury();
+      allow create: if canCreateActividad();
+      allow update: if canUpdateActividad();
+      allow delete: if false;
     }
 
     match /movimientos_actividad/{movimientoId} {
       allow read: if isStaff();
-      allow create, update, delete: if isAdmin() || isTreasury();
+      allow create: if canCreateActividadMovement();
+      allow update: if canVoidActividadMovement();
+      allow delete: if false;
     }
 
     match /configuracion/{configId} {

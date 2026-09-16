@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { appEnvironment } from '../lib/firebase'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
 
-type NavIconName = 'dashboard' | 'users' | 'finance' | 'settings' | 'rules' | 'audit' | 'migration' | 'check' | 'account' | 'bell'
+type NavIconName = 'dashboard' | 'users' | 'finance' | 'activity' | 'settings' | 'rules' | 'audit' | 'migration' | 'check' | 'account' | 'bell'
 
 function NavIcon({ name }: { name: NavIconName }) {
   const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
@@ -12,6 +12,7 @@ function NavIcon({ name }: { name: NavIconName }) {
     dashboard: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
     users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
     finance: <><path d="M4 19V9" /><path d="M10 19V5" /><path d="M16 19v-7" /><path d="M22 19V3" /><path d="M2 21h22" /></>,
+    activity: <><path d="M4 20V10" /><path d="M20 20V10" /><path d="M2 20h20" /><path d="M6 10V6l6-3 6 3v4" /><path d="M9 20v-5h6v5" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1a1.7 1.7 0 0 0-1.4-1.66 1.7 1.7 0 0 0-1.48.46l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.76 8.2a1.7 1.7 0 0 0-.46-1.48l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.8 4.76a1.7 1.7 0 0 0 1.48-.46l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.11.36.32.7.6 1 .3.27.68.42 1.1.4h.1v4h-.1A1.7 1.7 0 0 0 19.4 15Z" /></>,
     rules: <><path d="M4 6h16" /><path d="M4 12h10" /><path d="M4 18h7" /><circle cx="18" cy="12" r="2" /><circle cx="15" cy="18" r="2" /></>,
     audit: <><path d="M9 3h6l4 4v14H5V3h4Z" /><path d="M14 3v5h5" /><path d="m8 14 2 2 5-5" /></>,
@@ -39,6 +40,7 @@ function routeMeta(pathname: string) {
   if (pathname.startsWith('/admin/auditoria')) return { section: 'Control', title: 'Auditoría' }
   if (pathname.startsWith('/admin/reglas-cobro')) return { section: 'Configuración', title: 'Reglas especiales' }
   if (pathname.startsWith('/admin/cuotas')) return { section: 'Configuración', title: 'Tarifas y generación' }
+  if (pathname.startsWith('/admin/actividades')) return { section: 'Gestión', title: 'Actividades' }
   if (pathname.startsWith('/admin/finanzas')) return { section: 'Gestión', title: 'Finanzas' }
   if (pathname.startsWith('/admin/socios')) return { section: 'Gestión', title: 'Socios y cuotas' }
   if (pathname === '/admin') return { section: 'Gestión institucional', title: 'Panel de gestión' }
@@ -86,6 +88,7 @@ export function AppShell() {
                 {navItem('/admin', 'Panel', 'dashboard', true)}
                 {navItem('/admin/socios', 'Socios y cuotas', 'users')}
                 {navItem('/admin/finanzas', 'Finanzas', 'finance')}
+                {navItem('/admin/actividades', 'Actividades', 'activity')}
               </div>
 
               <div className="nav-group">

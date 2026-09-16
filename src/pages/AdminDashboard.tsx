@@ -94,13 +94,18 @@ export function AdminDashboard() {
               <span className="dashboard-module-copy"><strong>Finanzas</strong><small>Ingresos, egresos, balance mensual, filtros y exportación.</small></span>
               <span className="dashboard-module-arrow" aria-hidden="true">›</span>
             </Link>
-            <Link className="dashboard-module-row" to="/admin/auditoria">
+            <Link className="dashboard-module-row" to="/admin/actividades">
               <span className="dashboard-module-icon" aria-hidden="true">A</span>
+              <span className="dashboard-module-copy"><strong>Actividades</strong><small>Subcontabilidad de retiros, San Juan, Club de Damas, Academia y otras iniciativas.</small></span>
+              <span className="dashboard-module-arrow" aria-hidden="true">›</span>
+            </Link>
+            <Link className="dashboard-module-row" to="/admin/auditoria">
+              <span className="dashboard-module-icon" aria-hidden="true">C</span>
               <span className="dashboard-module-copy"><strong>Auditoría</strong><small>Trazabilidad central de acciones, actores, importes y motivos.</small></span>
               <span className="dashboard-module-arrow" aria-hidden="true">›</span>
             </Link>
             <Link className="dashboard-module-row" to="/admin/cuotas">
-              <span className="dashboard-module-icon" aria-hidden="true">C</span>
+              <span className="dashboard-module-icon" aria-hidden="true">T</span>
               <span className="dashboard-module-copy"><strong>Tarifas y configuración</strong><small>Tarifas, generación mensual, reglas especiales y excepciones.</small></span>
               <span className="dashboard-module-arrow" aria-hidden="true">›</span>
             </Link>
@@ -112,16 +117,16 @@ export function AdminDashboard() {
             <div className="panel-heading-row"><div><p className="legacy-kicker">Control</p><h3>Estado del sistema</h3></div></div>
             <div className="dashboard-status-list">
               <div className="dashboard-status-item"><span>Finanzas</span><span className="status-badge success">Operativo</span></div>
+              <div className="dashboard-status-item"><span>Actividades</span><span className="status-badge success">En prueba DEV</span></div>
               <div className="dashboard-status-item"><span>Auditoría central</span><span className="status-badge success">Activa</span></div>
               <div className="dashboard-status-item"><span>Migración productiva</span><span className="status-badge neutral">Pendiente</span></div>
-              <div className="dashboard-status-item"><span>Actividades</span><span className="status-badge neutral">Próximo módulo</span></div>
             </div>
           </article>
 
           <article className="panel legacy-panel">
-            <p className="legacy-kicker">Siguiente etapa</p>
-            <h3>Actividades</h3>
-            <p>Retiros, San Juan, Club de Damas y otras iniciativas tendrán subcontabilidad propia, integrada al balance general sin duplicar movimientos.</p>
+            <p className="legacy-kicker">Arquitectura contable</p>
+            <h3>Una sola fuente por movimiento</h3>
+            <p>Los ingresos y egresos creados desde Actividades generan su asiento financiero canónico y quedan vinculados a la subcontabilidad, evitando cargas duplicadas.</p>
           </article>
         </div>
       </div>

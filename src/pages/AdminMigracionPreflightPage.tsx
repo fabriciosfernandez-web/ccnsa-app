@@ -4,6 +4,7 @@ import { analyzeMigration2026, type MigrationPreview } from '../data/migration20
 import { analyzeMigrationSnapshot2026, type MigrationSnapshot2026 } from '../data/migrationSnapshot2026'
 import { buildMigrationDryRun2026, type MigrationDryRun2026 } from '../data/migrationDryRun2026'
 import { runMigrationPreflight2026, type MigrationPreflight2026 } from '../data/migrationPreflight2026'
+import { buildMigrationCleanupPreview2026, type MigrationCleanupPreview2026 } from '../data/migrationCleanupPreview2026'
 import './admin-migracion.css'
 
 const DEFAULT_SHEET = 'https://docs.google.com/spreadsheets/d/1REWfqtMAjemajR3Av1fchmIzzqKK8MBr6KfF1pNh_RA/edit'
@@ -19,8 +20,9 @@ export function AdminMigracionPreflightPage() {
   const [snapshot, setSnapshot] = useState<MigrationSnapshot2026 | null>(null)
   const [dryRun, setDryRun] = useState<MigrationDryRun2026 | null>(null)
   const [preflight, setPreflight] = useState<MigrationPreflight2026 | null>(null)
+  const [cleanupPreview, setCleanupPreview] = useState<MigrationCleanupPreview2026 | null>(null)
   const [source, setSource] = useState<{ spreadsheet: string; maxRow: number } | null>(null)
-  const [loading, setLoading] = useState<'SOURCE' | 'SNAPSHOT' | 'PREFLIGHT' | null>(null)
+  const [loading, setLoading] = useState<'SOURCE' | 'SNAPSHOT' | 'PREFLIGHT' | 'CLEANUP' | null>(null)
   const [error, setError] = useState('')
 
   async function refreshSource(event: FormEvent<HTMLFormElement>) {
@@ -37,6 +39,7 @@ export function AdminMigracionPreflightPage() {
       setSnapshot(null)
       setDryRun(null)
       setPreflight(null)
+      setCleanupPreview(null)
       const result = await analyzeMigration2026(user, spreadsheet, maxRow)
       setPreview(result)
       setSource({ spreadsheet, maxRow })
@@ -55,6 +58,7 @@ export function AdminMigracionPreflightPage() {
       setError('')
       setDryRun(null)
       setPreflight(null)
+      setCleanupPreview(null)
       const result = await analyzeMigrationSnapshot2026(user, source.spreadsheet, preview, source.maxRow)
       setSnapshot(result)
     } catch (caught) {
@@ -71,12 +75,27 @@ export function AdminMigracionPreflightPage() {
       setLoading('PREFLIGHT')
       setError('')
       setPreflight(null)
+      setCleanupPreview(null)
       const plan = buildMigrationDryRun2026(preview, snapshot)
       setDryRun(plan)
       if (plan.status !== 'LISTO') throw new Error(`El dry-run fresco quedó BLOQUEADO: ${plan.blockers.join(' ')}`)
       setPreflight(await runMigrationPreflight2026(plan))
     } catch (caught) {
       console.error('Migration Firestore preflight error', caught)
+      setError(errorMessage(caught))
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function inspectCleanupCandidates() {
+    if (!preflight || preflight.status !== 'LISTO' || loading) return
+    try {
+      setLoading('CLEANUP')
+      setError('')
+      setCleanupPreview(await buildMigrationCleanupPreview2026())
+    } catch (caught) {
+      console.error('Migration cleanup preview error', caught)
       setError(errorMessage(caught))
     } finally {
       setLoading(null)
@@ -248,8 +267,96 @@ export function AdminMigracionPreflightPage() {
             </article>
           )}
 
+          <article className="panel migration-snapshot-launch migration-dryrun-launch">
+            <div>
+              <p className="legacy-kicker">Fase 3E · Limpieza previa</p>
+              <h3>Inventariar datos existentes de prueba</h3>
+              <p className="muted">Lee los documentos que ya existen en las seis colecciones objetivo, resuelve sus relaciones y los muestra antes de considerar cualquier eliminación.</p>
+            </div>
+            <button
+              className="button primary"
+              type="button"
+              onClick={() => void inspectCleanupCandidates()}
+              disabled={preflight.status !== 'LISTO' || Boolean(loading)}
+            >
+              {loading === 'CLEANUP' ? 'Inventariando…' : cleanupPreview ? 'Actualizar inventario' : 'Ver inventario de limpieza'}
+            </button>
+          </article>
+
+          {cleanupPreview && (
+            <>
+              <div className={`notice ${cleanupPreview.status === 'LISTO_PARA_REVISION' ? 'socios-success' : 'error'} migration-dryrun-status`}>
+                <strong>Inventario {cleanupPreview.status === 'LISTO_PARA_REVISION' ? 'listo para revisión' : 'con advertencias'}.</strong>{' '}
+                Se encontraron {cleanupPreview.totalDocuments} documentos. No se eliminó ni modificó ninguno.
+              </div>
+
+              <div className="metric-grid legacy-metric-grid migration-metrics migration-dryrun-metrics">
+                <article className="metric-card legacy-metric-card">
+                  <span>Documentos existentes</span>
+                  <strong>{cleanupPreview.totalDocuments}</strong>
+                  <small>En las seis colecciones objetivo.</small>
+                </article>
+                <article className="metric-card legacy-metric-card">
+                  <span>Vinculados a socios</span>
+                  <strong>{cleanupPreview.linkedToExistingSocios}</strong>
+                  <small>Documentos hijos con socio existente.</small>
+                </article>
+                <article className="metric-card legacy-metric-card">
+                  <span>Referencias problemáticas</span>
+                  <strong>{cleanupPreview.orphanReferences}</strong>
+                  <small>Huérfanas, incompletas o sin socioId.</small>
+                </article>
+                <article className="metric-card legacy-metric-card">
+                  <span>Documentos de migración</span>
+                  <strong>{cleanupPreview.migrationDocuments}</strong>
+                  <small>Deben ser 0 antes de limpiar pruebas.</small>
+                </article>
+              </div>
+
+              {cleanupPreview.warnings.length > 0 && (
+                <div className="cuotas-info-box">
+                  <strong>Observaciones del inventario.</strong>
+                  <ul className="migration-checklist">{cleanupPreview.warnings.map((item) => <li key={item}>{item}</li>)}</ul>
+                </div>
+              )}
+
+              <article className="panel migration-table-panel">
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="legacy-kicker">Detalle exacto</p>
+                    <h3>Documentos actualmente en Firestore</h3>
+                  </div>
+                  <span className="status-badge neutral">Solo lectura</span>
+                </div>
+                <div className="migration-table-wrap">
+                  <table className="migration-table">
+                    <thead>
+                      <tr><th>Colección</th><th>ID</th><th>Socio</th><th>Contenido</th><th>Relación</th><th>Origen</th></tr>
+                    </thead>
+                    <tbody>
+                      {cleanupPreview.items.map((item) => (
+                        <tr key={`${item.collection}-${item.id}`}>
+                          <td>{item.collection}</td>
+                          <td><code>{item.id}</code></td>
+                          <td>{item.socioNombre ?? item.socioId ?? '—'}</td>
+                          <td>{item.summary}</td>
+                          <td>{item.relationStatus} · {item.relationNote}</td>
+                          <td>{item.origin ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <div className="cuotas-info-box migration-next-step">
+                <strong>Limpieza todavía deshabilitada.</strong> Este inventario es únicamente diagnóstico. La eliminación se habilitará solo después de confirmar que todos los documentos listados corresponden a pruebas.
+              </div>
+            </>
+          )}
+
           <div className="cuotas-info-box migration-next-step">
-            <strong>Importación real sigue deshabilitada.</strong> Si este preflight queda LISTO, el próximo cambio será implementar el ejecutor idempotente con actorUid, audit_log y revalidación del fingerprint inmediatamente antes del primer batch.
+            <strong>Importación real sigue deshabilitada.</strong> El ejecutor idempotente ya está preparado, pero no está conectado a ningún control de esta pantalla.
           </div>
         </>
       )}

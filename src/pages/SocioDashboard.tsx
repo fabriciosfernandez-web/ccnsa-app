@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { loadEstadoCuenta, type EstadoCuenta, type ObligacionCalculada } from '../data/socios'
 import { downloadEstadoCuentaPdf } from '../lib/estadoCuentaPdf'
@@ -68,7 +67,6 @@ export function SocioDashboard() {
   }, [profile?.socioId])
 
   const ultimoPago = account?.pagos.find((item) => item.estado !== 'ANULADO')
-  const saldoPendiente = account?.saldoPendiente ?? 0
   const saldoFavor = account?.saldoFavor ?? 0
   const saldoNeto = account?.saldoNeto ?? 0
   const badgeText = saldoNeto > 0 ? 'Con saldo pendiente' : saldoNeto < 0 ? 'Saldo a favor' : 'Al día'
@@ -146,17 +144,15 @@ export function SocioDashboard() {
 
       {error && <div className="notice error">{error}</div>}
 
-      <div className="socio-actions">
+      <div className="socio-toolbar">
+        <div className="socio-tabs" role="tablist" aria-label="Secciones del estado de cuenta">
+          <button className={`socio-tab ${activeTab === 'RESUMEN' ? 'active' : ''}`} type="button" role="tab" aria-selected={activeTab === 'RESUMEN'} onClick={() => setActiveTab('RESUMEN')}>Resumen</button>
+          <button className={`socio-tab ${activeTab === 'OBLIGACIONES' ? 'active' : ''}`} type="button" role="tab" aria-selected={activeTab === 'OBLIGACIONES'} onClick={() => setActiveTab('OBLIGACIONES')}>Obligaciones</button>
+          <button className={`socio-tab ${activeTab === 'PAGOS' ? 'active' : ''}`} type="button" role="tab" aria-selected={activeTab === 'PAGOS'} onClick={() => setActiveTab('PAGOS')}>Pagos</button>
+        </div>
         <button className="button primary" type="button" onClick={downloadPdf} disabled={loading || !account}>
           Descargar estado PDF
         </button>
-        <Link className="button secondary" to="/socio/notificaciones">Notificaciones</Link>
-      </div>
-
-      <div className="socio-tabs" role="tablist" aria-label="Secciones del estado de cuenta">
-        <button className={`socio-tab ${activeTab === 'RESUMEN' ? 'active' : ''}`} type="button" role="tab" aria-selected={activeTab === 'RESUMEN'} onClick={() => setActiveTab('RESUMEN')}>Resumen</button>
-        <button className={`socio-tab ${activeTab === 'OBLIGACIONES' ? 'active' : ''}`} type="button" role="tab" aria-selected={activeTab === 'OBLIGACIONES'} onClick={() => setActiveTab('OBLIGACIONES')}>Obligaciones</button>
-        <button className={`socio-tab ${activeTab === 'PAGOS' ? 'active' : ''}`} type="button" role="tab" aria-selected={activeTab === 'PAGOS'} onClick={() => setActiveTab('PAGOS')}>Pagos</button>
       </div>
 
       {loading ? (
@@ -219,29 +215,20 @@ export function SocioDashboard() {
                   </div>
                 </article>
 
-                <div className="dashboard-side-stack">
-                  <article className="panel legacy-panel socio-notification-card">
-                    <p className="legacy-kicker">Últimos movimientos</p>
-                    <h3>Pagos recientes</h3>
-                    <div className="socio-payment-list">
-                      {account.pagos.filter((item) => item.estado !== 'ANULADO').slice(0, 3).map((item) => (
-                        <div className="socio-payment-row" key={item.id}>
-                          <div><strong>{item.fecha || 'Sin fecha'}</strong><small>{item.medioPago || 'Medio no informado'}{item.referencia ? ` · Ref. ${item.referencia}` : ''}</small></div>
-                          <div className="socio-payment-amount"><strong>{money(item.importe)}</strong><small>{item.saldoDisponible > 0 ? `${money(item.saldoDisponible)} a favor` : 'aplicado'}</small></div>
-                        </div>
-                      ))}
-                      {account.pagos.filter((item) => item.estado !== 'ANULADO').length === 0 && <p className="muted">Sin pagos registrados.</p>}
-                    </div>
-                    <button className="button secondary inline-button" type="button" onClick={() => setActiveTab('PAGOS')}>Ver todos los pagos</button>
-                  </article>
-
-                  <article className="panel legacy-panel">
-                    <p className="legacy-kicker">Avisos</p>
-                    <h3>Centro de notificaciones</h3>
-                    <p className="muted">Los avisos de pagos, obligaciones y vencimientos aparecerán en tu centro de notificaciones.</p>
-                    <Link className="button primary inline-button" to="/socio/notificaciones">Ver notificaciones</Link>
-                  </article>
-                </div>
+                <article className="panel legacy-panel socio-recent-card">
+                  <p className="legacy-kicker">Últimos movimientos</p>
+                  <h3>Pagos recientes</h3>
+                  <div className="socio-payment-list">
+                    {account.pagos.filter((item) => item.estado !== 'ANULADO').slice(0, 3).map((item) => (
+                      <div className="socio-payment-row" key={item.id}>
+                        <div><strong>{item.fecha || 'Sin fecha'}</strong><small>{item.medioPago || 'Medio no informado'}{item.referencia ? ` · Ref. ${item.referencia}` : ''}</small></div>
+                        <div className="socio-payment-amount"><strong>{money(item.importe)}</strong><small>{item.saldoDisponible > 0 ? `${money(item.saldoDisponible)} a favor` : 'aplicado'}</small></div>
+                      </div>
+                    ))}
+                    {account.pagos.filter((item) => item.estado !== 'ANULADO').length === 0 && <p className="muted">Sin pagos registrados.</p>}
+                  </div>
+                  <button className="button secondary inline-button" type="button" onClick={() => setActiveTab('PAGOS')}>Ver todos los pagos</button>
+                </article>
               </div>
             </>
           )}

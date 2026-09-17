@@ -8,7 +8,7 @@
 4. **Los datos sensibles se minimizan.** No se guardan contraseñas en Firestore y no se incluyen secretos en el repositorio.
 5. **Las operaciones financieras deben ser trazables.** Las escrituras sensibles generan auditoría y las aplicaciones de pagos son append-only.
 6. **Las notificaciones se desacoplan de los canales de entrega.** El evento de negocio, la notificación y su eventual entrega por correo/push se modelan como conceptos separados.
-7. **La estructura organizacional y la autorización son conceptos distintos.** Los comités identifican la pertenencia institucional del usuario; los roles técnicos y las reglas determinan qué operaciones puede ejecutar.
+7. **La estructura organizacional se separa de la autorización técnica.** Los comités describen pertenencia institucional; los roles y permisos gobiernan acceso al sistema.
 
 ## Colecciones
 
@@ -18,13 +18,13 @@ Perfil de autorización vinculado a Firebase Authentication.
 Campos iniciales:
 - `displayName`: string
 - `role`: `SOCIO | TESORERIA | ADMIN | CONSULTA`
-- `comites`: array opcional de códigos o nombres de comités; permite representar la estructura organizacional sin multiplicar roles técnicos
 - `socioId`: string opcional; obligatorio para rol `SOCIO`
+- `comites`: array opcional de códigos organizacionales, por ejemplo `FINANZAS`
 - `active`: boolean
 - `createdAt`: timestamp
 - `updatedAt`: timestamp
 
-`TESORERIA` se conserva como identificador técnico por compatibilidad con reglas y datos existentes, pero en la interfaz se presenta como **Comité de Finanzas**. Para perfiles nuevos se podrá informar además `comites: ['FINANZAS']`; la aplicación ya admite ese dato sin alterar la autorización actual.
+`TESORERIA` se conserva como identificador técnico por compatibilidad, pero representa funcionalmente al **Comité de Finanzas**. A futuro, pertenencia a comité y permisos podrán evolucionar independientemente.
 
 ### `socios/{socioId}`
 Maestro de socios.
@@ -137,7 +137,7 @@ Aviso canónico vinculado a un socio. El hecho de que exista una notificación n
 
 Campos iniciales:
 - `socioId`
-- `kind`: `ACCOUNT_STATEMENT_READY | PAYMENT_POSTED | OVERDUE_REMINDER | GENERAL_NOTICE`
+- `kind`: `ACCOUNT_STATEMENT_READY | PAYMENT_POSTED | OBLIGATION_POSTED | OVERDUE_REMINDER | GENERAL_NOTICE`
 - `title`
 - `message`
 - `status`: `UNREAD | READ`
@@ -150,6 +150,7 @@ Campos iniciales:
 - `sourceType` opcional
 - `sourceId` opcional
 - `deduplicationKey`
+- `createdByUid` opcional cuando el aviso nace de una operación interna autorizada
 
 ### `notification_preferences/{socioId}`
 Preferencias de recepción del socio.
@@ -202,18 +203,14 @@ Para un socio:
 
 El saldo a favor no se pierde: se conserva en el pago original y se consume cuando aparecen nuevas obligaciones.
 
-## Roles técnicos y comités
+## Roles iniciales
 
-| Rol técnico | Presentación / alcance |
-| --- | --- |
-| `SOCIO` | **Socio.** Lectura exclusivamente de su perfil institucional, obligaciones, pagos, aplicaciones y notificaciones vinculadas; puede marcar sus propias notificaciones como leídas y administrar sus preferencias. |
-| `TESORERIA` | **Comité de Finanzas.** Consulta de socios y gestión de obligaciones, pagos, aplicaciones y movimientos financieros; puede generar notificaciones de negocio. |
-| `ADMIN` | **Administrador.** Administración completa, incluidos usuarios, socios y configuración. |
-| `CONSULTA` | **Consulta / Control.** Acceso interno de solo lectura para control/auditoría. |
-
-La afiliación a comités no reemplaza por sí sola los controles de autorización. La aplicación puede mostrar **Comité de Finanzas**, **Comité de Admisión** u otros comités como contexto organizacional, mientras que las reglas de Firestore continúan evaluando capacidades técnicas. Esto permite que, por ejemplo, un integrante de un comité pueda tener funciones operativas o únicamente de consulta según corresponda.
-
-Para el flujo financiero, el **Comité de Finanzas** es responsable de registrar pagos de socios, obligaciones, ingresos, egresos, aplicaciones y correcciones financieras. Los demás módulos pueden asociarse a actividades o comités responsables, pero la registración económica definitiva conserva la trazabilidad y los permisos financieros.
+| Rol técnico | Presentación institucional | Alcance |
+| --- | --- | --- |
+| `SOCIO` | Socio | Lectura exclusivamente de su perfil institucional, obligaciones, pagos, aplicaciones y notificaciones vinculadas; puede marcar sus propias notificaciones como leídas y administrar sus preferencias. |
+| `TESORERIA` | Comité de Finanzas | Consulta de socios y gestión de obligaciones, pagos y movimientos financieros; puede generar notificaciones de negocio. |
+| `ADMIN` | Administrador | Administración completa, incluidos usuarios, socios y configuración. |
+| `CONSULTA` | Consulta / Control | Acceso interno de solo lectura para control/auditoría. |
 
 ## Migración
 

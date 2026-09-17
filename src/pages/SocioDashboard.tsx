@@ -121,7 +121,6 @@ export function SocioDashboard() {
     if (!account || !profile) return
     downloadEstadoCuentaPdf({
       socioNombre: profile.displayName,
-      socioId: profile.socioId,
       account,
     })
   }

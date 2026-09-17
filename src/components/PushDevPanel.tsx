@@ -3,6 +3,7 @@ import { appEnvironment } from '../lib/firebase'
 import {
   inspectPushSupport,
   registerPushForManualTest,
+  showLocalNotificationTest,
   storedVapidKey,
   subscribeForegroundMessages,
   type PushSetupState,
@@ -18,6 +19,8 @@ export function PushDevPanel() {
   const [vapidKey, setVapidKey] = useState(storedVapidKey)
   const [token, setToken] = useState('')
   const [busy, setBusy] = useState(false)
+  const [testingLocal, setTestingLocal] = useState(false)
+  const [localTestSent, setLocalTestSent] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
   const [foregroundMessage, setForegroundMessage] = useState('')
@@ -59,6 +62,21 @@ export function PushDevPanel() {
     }
   }
 
+  async function testLocalNotification() {
+    setTestingLocal(true)
+    setError('')
+    setLocalTestSent(false)
+    try {
+      await showLocalNotificationTest()
+      setLocalTestSent(true)
+      setSupport(await inspectPushSupport())
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setTestingLocal(false)
+    }
+  }
+
   async function copyToken() {
     if (!token) return
     await navigator.clipboard.writeText(token)
@@ -94,6 +112,22 @@ export function PushDevPanel() {
         <div><span>Permiso del navegador</span><strong>{permissionLabel}</strong></div>
         <div><span>Service Worker</span><strong>{typeof navigator !== 'undefined' && 'serviceWorker' in navigator ? 'Disponible' : 'No disponible'}</strong></div>
       </div>
+
+      <div className="push-dev-diagnostic">
+        <div>
+          <strong>Diagnóstico del navegador</strong>
+          <small>Primero comprobamos si Windows/Chrome y el Service Worker pueden mostrar un aviso, sin depender de FCM.</small>
+        </div>
+        <button className="button secondary" type="button" onClick={() => void testLocalNotification()} disabled={testingLocal || support?.supported === false}>
+          {testingLocal ? 'Probando…' : 'Probar notificación local'}
+        </button>
+      </div>
+
+      {localTestSent && (
+        <div className="notice socios-success">
+          <strong>Prueba local enviada.</strong> Si apareció el aviso del sistema, el navegador está bien configurado y podemos concentrarnos únicamente en FCM.
+        </div>
+      )}
 
       <label className="push-dev-key">
         Clave pública VAPID
@@ -136,10 +170,12 @@ export function PushDevPanel() {
       <div className="push-dev-instructions">
         <strong>Cómo validar el push real</strong>
         <ol>
+          <li>Probá primero la notificación local de arriba.</li>
           <li>Generá una clave Web Push/VAPID en Firebase Console y pegala arriba.</li>
           <li>Habilitá las notificaciones y copiá el token FCM.</li>
           <li>En Firebase Console, creá una notificación y elegí “Enviar mensaje de prueba”.</li>
-          <li>Pegá el token y enviá el test. Para ver la notificación del sistema, dejá esta pestaña en segundo plano.</li>
+          <li>Primero probá con CCNSA abierta: si FCM llega, aparecerá una confirmación verde en este panel.</li>
+          <li>Después dejá CCNSA en segundo plano y repetí el test para validar la notificación del sistema.</li>
         </ol>
       </div>
     </section>

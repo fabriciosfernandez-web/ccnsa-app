@@ -1,108 +1,67 @@
 # CCNSA App
 
-Sistema web de gestión de socios, cuotas, pagos, finanzas y actividades del CCNSA.
+Aplicación web de gestión institucional para el Centro Cultural CCNSA.
 
-## Estado del proyecto
+## Estado actual
 
-La rama `feature/firebase-bootstrap` contiene la **Fase 1: base técnica**. En esta etapa no se utilizan datos personales ni financieros productivos y no se modifica la planilla institucional existente.
+El proyecto se encuentra en desarrollo sobre Firebase DEV. La planilla `Lista de miembros 2026` continúa siendo la fuente productiva hasta completar validación funcional, seguridad, pruebas end-to-end y migración controlada.
 
-Incluye:
+### Módulos disponibles en DEV
 
-- React + Vite + TypeScript.
-- Firebase Authentication preparado para correo/contraseña.
-- Firestore como base operativa prevista.
-- Roles `SOCIO`, `TESORERIA`, `ADMIN` y `CONSULTA`.
-- Rutas protegidas y separación inicial entre portal del socio y panel interno.
-- Reglas de Firestore con criterio de mínimo privilegio y denegación por defecto.
-- Configuración para Firebase Hosting.
-- Modelo de datos inicial documentado en `docs/data-model.md`.
-- Módulo desacoplado de notificaciones de estado de cuenta, con centro in-app y preferencias en modo mock; arquitectura documentada en `docs/notifications.md`.
-- Configuración de Firebase mediante variables de entorno; no hay secretos ni credenciales reales en Git.
+- Gestión de socios, obligaciones, pagos y aplicaciones.
+- Tarifas, generación y reglas especiales de cobro.
+- Finanzas: ingresos, egresos, balance y exportación.
+- Actividades con subcontabilidad vinculada al libro financiero.
+- Auditoría centralizada.
+- Portal del socio y estado de cuenta PDF institucional.
+- Notificaciones in-app persistidas en Firestore para pagos y nuevas obligaciones.
+- Herramientas de preflight y migración 2026, todavía sin ejecución productiva.
 
-## Requisitos
+## Estructura organizacional y permisos
 
-- Node.js compatible con la versión de Vite declarada en `package.json`.
-- Un proyecto Firebase de desarrollo.
-- Authentication con proveedor Email/Password habilitado.
-- Cloud Firestore creado en modo producción.
+CCNSA se organiza institucionalmente por comités. La aplicación separa esa estructura de los permisos técnicos:
 
-## Instalación local
+- `TESORERIA` se mantiene como rol técnico por compatibilidad, pero se presenta al usuario como **Comité de Finanzas**.
+- `users/{uid}` puede incluir `comites` para expresar pertenencia organizacional.
+- `ADMIN`, `CONSULTA` y `SOCIO` continúan siendo perfiles técnicos de autorización.
+- Firestore Security Rules siguen siendo la fuente de verdad para accesos y escrituras.
+
+Esta separación permite incorporar otros comités sin convertir cada comité en un rol rígido del sistema.
+
+## Notificaciones
+
+El centro `/socio/notificaciones` ya utiliza Firestore:
+
+- un pago registrado por personal autorizado puede generar `PAYMENT_POSTED`;
+- una nueva obligación vigente puede generar `OBLIGATION_POSTED`;
+- el socio puede marcar sus avisos como leídos y guardar preferencias;
+- correo y push permanecen deshabilitados hasta contar con un backend/proveedor confiable;
+- recordatorios periódicos y estados de cuenta programados requieren scheduler/backend y no se simulan en el cliente.
+
+Ver `docs/notifications.md` para el diseño completo.
+
+## Entornos
+
+- DEV: `ccnsa-web-dev`
+- PROD: reservado como `ccnsa-web-prod`; todavía no debe utilizarse hasta cerrar DEV.
+
+El proyecto mantiene separación explícita de configuración para evitar cruces accidentales entre entornos. Ver `docs/environments.md`.
+
+## Migración 2026
+
+La migración desde Google Sheets se trabaja con snapshot y preflight determinísticos. La planilla productiva permanece en modo lectura desde esta aplicación durante el desarrollo. No ejecutar la migración real hasta completar la validación funcional y de seguridad.
+
+## Desarrollo local
 
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
-En Windows PowerShell podés reemplazar el segundo comando por:
-
-```powershell
-Copy-Item .env.example .env.local
-```
-
-Luego completá `.env.local` con el `firebaseConfig` de la aplicación web del proyecto Firebase. La configuración web de Firebase identifica el proyecto cliente; no debe confundirse con una clave privada de cuenta de servicio. **Nunca subas cuentas de servicio, claves privadas o tokens al repositorio.**
-
-## Verificaciones
+Build de verificación:
 
 ```bash
-npm run typecheck
 npm run build
 ```
 
-## Modelo inicial de autorización
-
-Cada usuario autenticado debe tener un documento `users/{uid}` en Firestore con una estructura similar a:
-
-```json
-{
-  "displayName": "Usuario de prueba",
-  "role": "SOCIO",
-  "socioId": "SOCIO-TEST-001",
-  "active": true
-}
-```
-
-Para usuarios internos, `role` puede ser `TESORERIA`, `ADMIN` o `CONSULTA`; `socioId` no es necesario.
-
-Los perfiles y roles deben ser creados o modificados únicamente por administración. Un usuario no puede asignarse privilegios a sí mismo mediante las reglas incluidas.
-
-## Estructura
-
-```text
-src/
-├── auth/            # sesión, perfil y autorización por roles
-├── layouts/         # estructura visual autenticada
-├── lib/             # inicialización de Firebase
-├── notifications/   # dominio y contrato desacoplado de notificaciones
-├── pages/           # login, dashboards y centro de notificaciones
-├── App.tsx          # rutas
-└── main.tsx         # entrada React
-
-docs/
-├── data-model.md
-└── notifications.md
-
-firestore.rules
-firestore.indexes.json
-firebase.json
-```
-
-## Criterios de diseño
-
-- Firestore será la fuente operativa de verdad; Google Sheets quedará como soporte de migración, conciliación, reportes o exportaciones.
-- Obligaciones y pagos se modelan por separado para poder representar deuda, exenciones, pagos parciales y anticipos sin ambigüedad.
-- Las colecciones financieras no se exponen directamente a un socio salvo los registros vinculados a su propio `socioId`.
-- `CONSULTA` es un rol de solo lectura.
-- La bitácora `audit_log` es append-only desde las reglas. En una futura arquitectura con backend confiable podrá reforzarse para que el log no dependa del cliente.
-- El módulo de notificaciones separa evento, notificación y entrega por canal. Esto permite cambiar de proveedor de email/push sin tocar la lógica de cuotas o pagos.
-- La primera versión evita Cloud Functions y Firebase Storage para mantener compatibilidad con una arquitectura inicial orientada al plan Spark.
-
-## Próximos hitos
-
-1. Ejecutar instalación, typecheck y build en un entorno de desarrollo.
-2. Vincular el proyecto Firebase `CCNSA App Dev` mediante `.env.local`.
-3. Crear usuarios ficticios para cada rol y probar aislamiento de acceso.
-4. Implementar CRUD de socios, obligaciones y pagos.
-5. Diseñar aplicación de pagos a obligaciones y cálculo de saldo.
-6. Reemplazar el servicio mock de notificaciones por un adaptador Firestore y validar reglas de lectura/preferencias.
-7. Preparar migración controlada de `Lista de miembros 2026`, con conciliación antes de cualquier carga productiva.
+Las variables Firebase están documentadas en `.env.example`.

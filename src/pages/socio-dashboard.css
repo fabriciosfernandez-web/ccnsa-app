@@ -1,0 +1,321 @@
+.socio-portal {
+  gap: 22px;
+}
+
+.socio-hero {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(270px, 0.55fr);
+  gap: 24px;
+  padding: clamp(22px, 3vw, 32px);
+  border: 1px solid color-mix(in srgb, var(--brand-accent) 22%, var(--border));
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 86% 10%, color-mix(in srgb, var(--brand-accent) 12%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-primary-strong) 92%, #000 8%), var(--brand-primary));
+  color: #f7fafc;
+  box-shadow: var(--shadow-md);
+}
+
+.socio-hero::after {
+  content: '';
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  right: -80px;
+  bottom: -130px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+}
+
+.socio-hero-copy,
+.socio-hero-balance {
+  position: relative;
+  z-index: 1;
+}
+
+.socio-hero-kicker {
+  margin: 0 0 8px;
+  color: #d8c38d;
+  font-size: 0.69rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.socio-hero h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  letter-spacing: -0.035em;
+}
+
+.socio-hero-copy > p:last-child {
+  max-width: 680px;
+  margin: 12px 0 0;
+  color: #c9d5dd;
+  line-height: 1.65;
+}
+
+.socio-hero-balance {
+  align-self: center;
+  display: grid;
+  gap: 7px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+}
+
+.socio-hero-balance > span:first-child {
+  color: #b8c6cf;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.socio-hero-balance strong {
+  color: #fff;
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+  letter-spacing: -0.035em;
+}
+
+.socio-hero-balance small {
+  color: #d5dde2;
+}
+
+.socio-hero-balance .status-badge {
+  justify-self: start;
+  margin-top: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.socio-hero-balance .status-badge.socio-status-warning {
+  color: #30260f;
+  background: #e7d39d;
+}
+
+.socio-hero-balance .status-badge.success {
+  color: #123426;
+  background: #bfe0ce;
+}
+
+.socio-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.socio-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-muted);
+}
+
+.socio-tab {
+  min-height: 36px;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.socio-tab.active {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.socio-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.socio-metrics .metric-card {
+  min-height: 112px;
+}
+
+.socio-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.55fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.socio-account-list,
+.socio-payment-list {
+  display: grid;
+  gap: 2px;
+}
+
+.socio-account-row,
+.socio-payment-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 13px 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.socio-account-row:last-child,
+.socio-payment-row:last-child {
+  border-bottom: 0;
+}
+
+.socio-account-row strong,
+.socio-account-row small,
+.socio-payment-row strong,
+.socio-payment-row small {
+  display: block;
+}
+
+.socio-account-row small,
+.socio-payment-row small {
+  margin-top: 3px;
+  color: var(--text-secondary);
+}
+
+.socio-account-amount,
+.socio-payment-amount {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.socio-account-amount strong,
+.socio-payment-amount strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.socio-account-amount small {
+  color: var(--text-tertiary);
+}
+
+.socio-recent-card .button {
+  margin-top: 8px;
+}
+
+.socio-table td,
+.socio-table th {
+  vertical-align: top;
+}
+
+.socio-obligation-concept strong,
+.socio-obligation-concept small,
+.socio-payment-detail strong,
+.socio-payment-detail small {
+  display: block;
+}
+
+.socio-obligation-concept small,
+.socio-payment-detail small {
+  margin-top: 4px;
+  color: var(--text-secondary);
+}
+
+.socio-reference {
+  display: inline-flex;
+  max-width: 260px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
+.socio-status-warning {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.socio-status-exempt {
+  color: var(--info);
+  background: var(--info-soft);
+}
+
+.socio-zero-note {
+  color: var(--text-tertiary);
+  font-size: 0.76rem;
+}
+
+.socio-section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.socio-section-heading h3 {
+  margin: 2px 0 0;
+}
+
+.socio-section-heading p {
+  margin: 5px 0 0;
+}
+
+@media (max-width: 1200px) {
+  .socio-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .socio-summary-grid,
+  .socio-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .socio-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .socio-toolbar {
+    align-items: stretch;
+  }
+
+  .socio-toolbar > .button {
+    width: 100%;
+  }
+
+  .socio-tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .socio-tab {
+    flex: 1 0 auto;
+  }
+
+  .socio-account-row,
+  .socio-payment-row {
+    grid-template-columns: 1fr;
+  }
+
+  .socio-account-amount,
+  .socio-payment-amount {
+    text-align: left;
+  }
+}
+
+:root[data-theme='dark'] .socio-hero {
+  border-color: rgba(195, 163, 90, 0.22);
+  background:
+    radial-gradient(circle at 84% 8%, rgba(195, 163, 90, 0.08), transparent 34%),
+    linear-gradient(135deg, #0d202d, #17374d);
+}

@@ -25,7 +25,29 @@ export interface UserProfile {
   displayName: string
   role: UserRole
   socioId?: string
+  comites?: string[]
   active: boolean
+}
+
+export function userRoleLabel(role?: string) {
+  if (role === 'TESORERIA') return 'Comité de Finanzas'
+  if (role === 'ADMIN') return 'Administrador'
+  if (role === 'CONSULTA') return 'Consulta / Control'
+  if (role === 'SOCIO') return 'Socio'
+  return role || 'Sin perfil'
+}
+
+function committeeLabel(code: string) {
+  const normalized = code.trim().toUpperCase()
+  if (normalized === 'FINANZAS') return 'Comité de Finanzas'
+  return code.trim()
+}
+
+export function userProfileContextLabel(profile?: Pick<UserProfile, 'role' | 'comites'> | null) {
+  if (!profile) return 'Sin perfil'
+  const labels = (profile.comites ?? []).map(committeeLabel).filter(Boolean)
+  if (labels.length > 0) return labels.join(' · ')
+  return userRoleLabel(profile.role)
 }
 
 interface AuthContextValue {
@@ -50,12 +72,16 @@ async function loadProfile(user: User): Promise<UserProfile | null> {
   if (!snapshot.exists()) return null
 
   const data = snapshot.data()
+  const rawCommittees = Array.isArray(data.comites) ? data.comites : Array.isArray(data.committees) ? data.committees : []
+  const comites = rawCommittees.map((value) => String(value).trim()).filter(Boolean)
+
   return {
     uid: user.uid,
     email: user.email,
     displayName: String(data.displayName ?? user.displayName ?? user.email ?? 'Usuario'),
     role: data.role as UserRole,
     socioId: data.socioId ? String(data.socioId) : undefined,
+    comites: comites.length > 0 ? comites : undefined,
     active: data.active !== false,
   }
 }

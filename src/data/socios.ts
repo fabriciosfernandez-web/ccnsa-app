@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   serverTimestamp,
@@ -90,9 +91,29 @@ export interface RegistroConAplicacionResult {
   cantidadAplicaciones: number
 }
 
+interface InAppNotificationPreferences {
+  inApp: boolean
+  paymentConfirmations: boolean
+}
+
 function requireDb() {
   if (!db) throw new Error('Firebase no está configurado.')
   return db
+}
+
+async function loadInAppNotificationPreferences(socioId: string): Promise<InAppNotificationPreferences> {
+  const database = requireDb()
+  const snapshot = await getDoc(doc(database, 'notification_preferences', socioId))
+  if (!snapshot.exists()) return { inApp: true, paymentConfirmations: true }
+  const data = snapshot.data()
+  return {
+    inApp: data.inApp !== false,
+    paymentConfirmations: data.paymentConfirmations !== false,
+  }
+}
+
+function notificationMoney(value: number) {
+  return `Gs. ${Math.round(value).toLocaleString('es-PY')}`
 }
 
 function mapSocio(snapshot: QueryDocumentSnapshot<DocumentData>): Socio {
@@ -283,7 +304,11 @@ export async function createObligacion(
   actorUid: string,
 ): Promise<RegistroConAplicacionResult> {
   const database = requireDb()
-  const [pagos, aplicaciones] = await Promise.all([listPagos(input.socioId), listAplicacionesPago(input.socioId)])
+  const [pagos, aplicaciones, notificationPreferences] = await Promise.all([
+    listPagos(input.socioId),
+    listAplicacionesPago(input.socioId),
+    loadInAppNotificationPreferences(input.socioId),
+  ])
   const aplicadoPorPago = sumBy(aplicaciones, (item) => item.pagoId, (item) => item.importe)
   const pagosConCredito = pagos
     .filter((item) => item.estado !== 'ANULADO')
@@ -338,6 +363,31 @@ export async function createObligacion(
     createdAt: serverTimestamp(),
   })
 
+  if (notificationPreferences.inApp && !sinImputacion) {
+    const notificationRef = doc(database, 'notifications', `obligation_${obligacionRef.id}`)
+    const coveredText = restante <= 0
+      ? ' La obligación quedó cubierta con saldo a favor existente.'
+      : aplicado > 0
+        ? ` Se aplicaron ${notificationMoney(aplicado)} de tu saldo a favor.`
+        : ''
+    batch.set(notificationRef, {
+      socioId: input.socioId,
+      kind: 'OBLIGATION_POSTED',
+      title: 'Nueva obligación registrada',
+      message: `El Comité de Finanzas registró ${input.concepto || 'una obligación'} por ${notificationMoney(input.importe)}${input.periodo ? ` para ${input.periodo}` : ''}.${coveredText}`,
+      status: 'UNREAD',
+      createdAt: serverTimestamp(),
+      accountPeriod: input.periodo || null,
+      amount: input.importe,
+      currency: 'PYG',
+      actionUrl: '/socio',
+      sourceType: 'obligaciones',
+      sourceId: obligacionRef.id,
+      deduplicationKey: `obligation:${obligacionRef.id}`,
+      createdByUid: actorUid,
+    })
+  }
+
   await batch.commit()
   return { id: obligacionRef.id, importeAplicado: aplicado, saldoDisponible: restante, cantidadAplicaciones }
 }
@@ -347,9 +397,10 @@ export async function createPago(
   actorUid: string,
 ): Promise<RegistroConAplicacionResult> {
   const database = requireDb()
-  const [obligaciones, aplicaciones] = await Promise.all([
+  const [obligaciones, aplicaciones, notificationPreferences] = await Promise.all([
     listObligaciones(input.socioId),
     listAplicacionesPago(input.socioId),
+    loadInAppNotificationPreferences(input.socioId),
   ])
   const aplicadoPorObligacion = sumBy(aplicaciones, (item) => item.obligacionId, (item) => item.importe)
   const pendientes = obligaciones
@@ -364,31 +415,34 @@ export async function createPago(
   const pagoRef = doc(collection(database, 'pagos'))
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
+  const estadoInicial = input.estado ?? 'REGISTRADO'
   let restante = input.importe
   let aplicado = 0
   let cantidadAplicaciones = 0
 
   batch.set(pagoRef, {
     ...input,
-    estado: input.estado ?? 'REGISTRADO',
+    estado: estadoInicial,
     createdAt: serverTimestamp(),
   })
 
-  for (const obligacion of pendientes) {
-    if (restante <= 0) break
-    const importe = Math.min(restante, obligacion.pendiente)
-    const aplicacionRef = doc(collection(database, 'aplicaciones_pago'))
-    batch.set(aplicacionRef, {
-      socioId: input.socioId,
-      pagoId: pagoRef.id,
-      obligacionId: obligacion.id,
-      importe,
-      actorUid,
-      createdAt: serverTimestamp(),
-    })
-    restante -= importe
-    aplicado += importe
-    cantidadAplicaciones += 1
+  if (estadoInicial !== 'ANULADO') {
+    for (const obligacion of pendientes) {
+      if (restante <= 0) break
+      const importe = Math.min(restante, obligacion.pendiente)
+      const aplicacionRef = doc(collection(database, 'aplicaciones_pago'))
+      batch.set(aplicacionRef, {
+        socioId: input.socioId,
+        pagoId: pagoRef.id,
+        obligacionId: obligacion.id,
+        importe,
+        actorUid,
+        createdAt: serverTimestamp(),
+      })
+      restante -= importe
+      aplicado += importe
+      cantidadAplicaciones += 1
+    }
   }
 
   batch.set(auditRef, {
@@ -402,6 +456,26 @@ export async function createPago(
     saldoDisponible: restante,
     createdAt: serverTimestamp(),
   })
+
+  if (estadoInicial === 'REGISTRADO' && notificationPreferences.inApp && notificationPreferences.paymentConfirmations) {
+    const notificationRef = doc(database, 'notifications', `payment_${pagoRef.id}`)
+    const saldoText = restante > 0 ? ` Quedaron ${notificationMoney(restante)} como saldo a favor.` : ''
+    batch.set(notificationRef, {
+      socioId: input.socioId,
+      kind: 'PAYMENT_POSTED',
+      title: 'Pago registrado',
+      message: `El Comité de Finanzas registró un pago de ${notificationMoney(input.importe)}. Se aplicaron ${notificationMoney(aplicado)} a tus obligaciones.${saldoText}`,
+      status: 'UNREAD',
+      createdAt: serverTimestamp(),
+      amount: input.importe,
+      currency: 'PYG',
+      actionUrl: '/socio',
+      sourceType: 'pagos',
+      sourceId: pagoRef.id,
+      deduplicationKey: `payment:${pagoRef.id}`,
+      createdByUid: actorUid,
+    })
+  }
 
   await batch.commit()
   return { id: pagoRef.id, importeAplicado: aplicado, saldoDisponible: restante, cantidadAplicaciones }

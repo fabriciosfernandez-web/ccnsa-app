@@ -224,7 +224,16 @@ service cloud.firestore {
         || (isSocio() && resource.data.socioId == currentSocioId());
 
       allow create: if (isAdmin() || isTreasury())
-        && request.resource.data.socioId is string;
+        && request.resource.data.socioId is string
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.status == 'UNREAD'
+        && request.resource.data.kind in [
+          'ACCOUNT_STATEMENT_READY',
+          'PAYMENT_POSTED',
+          'OBLIGATION_POSTED',
+          'OVERDUE_REMINDER',
+          'GENERAL_NOTICE'
+        ];
 
       allow update: if isSocio()
         && resource.data.socioId == currentSocioId()

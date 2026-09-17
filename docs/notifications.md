@@ -18,7 +18,7 @@ La aplicación trabaja contra un contrato `NotificationService`. En DEV, el cana
 
 - `IN_APP`: centro de notificaciones dentro de CCNSA App. **Activo en DEV.**
 - `EMAIL`: correo electrónico. Pendiente de proveedor/backend.
-- `PUSH`: notificación web/móvil. Pendiente de proveedor/backend.
+- `PUSH`: notificación web/móvil. Pendiente de backend para automatización, pero **la entrega real al navegador puede validarse manualmente en DEV con Firebase Cloud Messaging sin Blaze**.
 
 Los canales de entrega se modelan por separado del evento. Un mismo evento puede generar cero, una o varias entregas según las preferencias del socio.
 
@@ -58,6 +58,29 @@ Los avisos utilizan `sourceType`, `sourceId` y `deduplicationKey` para conservar
 `/socio/notificaciones`
 
 Muestra avisos persistidos, estado leído/no leído y preferencias reales. Ya no usa datos mock.
+
+## Prueba real de Web Push en DEV sin Blaze
+
+La aplicación incluye un panel DEV para validar la entrega real de Firebase Cloud Messaging en un navegador compatible, sin Cloud Functions ni facturación.
+
+Componentes:
+
+- `public/firebase-messaging-sw.js`: service worker de FCM para el proyecto `ccnsa-web-dev`;
+- `src/notifications/webPushDev.ts`: validación de compatibilidad, permiso, registro del service worker y obtención de token de prueba;
+- `src/components/PushDevPanel.tsx`: interfaz para pegar la clave pública VAPID, activar push y copiar el token.
+
+Procedimiento:
+
+1. Firebase Console → Project settings → Cloud Messaging → Web Push certificates → generar un par de claves.
+2. Copiar solamente la **clave pública VAPID** y pegarla en el panel DEV del portal.
+3. Autorizar notificaciones del navegador y obtener el token FCM de prueba.
+4. Firebase Console → Messaging → crear notificación → `Send test message` / `Enviar mensaje de prueba`.
+5. Pegar el token FCM y enviar el test.
+6. Con la pestaña en segundo plano, validar la notificación del sistema. Con la pestaña activa, el panel muestra el payload recibido en primer plano.
+
+La clave VAPID utilizada por el cliente es pública. El token FCM identifica una instancia concreta del navegador y debe tratarse como dato técnico: se copia únicamente a Firebase Console para esta validación y no se publica.
+
+Esta prueba demuestra que **el canal push funciona**, pero no conecta todavía un pago u obligación con el envío push automático. Esa automatización requiere un componente servidor confiable.
 
 ## Modelo Firestore
 
@@ -122,6 +145,8 @@ Esto permite cambiar de proveedor de correo o push sin alterar pagos, obligacion
 
 Los recordatorios periódicos, estados de cuenta mensuales automáticos y envíos confiables por correo/push requieren un proceso servidor o scheduler. No se simulan como si ya existieran. Cuando se incorpore backend deberá utilizarse un patrón outbox/worker o equivalente para evitar duplicados y mantener trazabilidad.
 
+Mientras el proyecto permanezca en Spark, la validación de push se limita al flujo manual desde Firebase Console. No se introducen Cloud Functions ni dependencias que requieran Blaze.
+
 ## Seguridad
 
 - Un socio solo puede leer sus notificaciones.
@@ -129,3 +154,4 @@ Los recordatorios periódicos, estados de cuenta mensuales automáticos y envío
 - Las notificaciones de negocio son creadas por personal autorizado o, a futuro, por un backend confiable.
 - Las preferencias pertenecen al socio autenticado.
 - La bitácora de entregas no debe ser modificable por usuarios finales.
+- La clave VAPID pública puede vivir en el cliente; el token FCM de prueba no debe compartirse fuera de Firebase Console.

@@ -39,6 +39,16 @@ export async function inspectPushSupport(): Promise<PushSetupState> {
   }
 }
 
+async function ensureMessagingServiceWorker() {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+    throw new Error('Este navegador no dispone de Service Worker.')
+  }
+
+  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+  await navigator.serviceWorker.ready
+  return registration
+}
+
 export async function registerPushForManualTest(vapidKey: string) {
   if (appEnvironment !== 'dev') {
     throw new Error('La activación manual de push está habilitada únicamente en DEV.')
@@ -58,8 +68,7 @@ export async function registerPushForManualTest(vapidKey: string) {
   }
 
   saveVapidKey(key)
-  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
-  await navigator.serviceWorker.ready
+  const registration = await ensureMessagingServiceWorker()
 
   const messaging = getMessaging(firebaseApp)
   const token = await getToken(messaging, {
@@ -69,6 +78,30 @@ export async function registerPushForManualTest(vapidKey: string) {
 
   if (!token) throw new Error('FCM no devolvió un token para este navegador.')
   return token
+}
+
+export async function showLocalNotificationTest() {
+  if (appEnvironment !== 'dev') {
+    throw new Error('La prueba local de push está habilitada únicamente en DEV.')
+  }
+
+  const support = await inspectPushSupport()
+  if (!support.secureContext) throw new Error('Las notificaciones web requieren HTTPS.')
+  if (!support.supported) throw new Error('Este navegador no soporta notificaciones web.')
+
+  const permission = support.permission === 'granted'
+    ? 'granted'
+    : await Notification.requestPermission()
+
+  if (permission !== 'granted') {
+    throw new Error('El navegador no concedió permiso para mostrar notificaciones.')
+  }
+
+  const registration = await ensureMessagingServiceWorker()
+  await registration.showNotification('CCNSA · prueba local', {
+    body: 'Si ves este aviso, Chrome/Windows y el Service Worker pueden mostrar notificaciones correctamente.',
+    tag: 'ccnsa-local-push-test',
+  })
 }
 
 export async function subscribeForegroundMessages(handler: (payload: MessagePayload) => void) {

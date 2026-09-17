@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
+import { PushDevPanel } from '../components/PushDevPanel'
 import {
   firestoreNotificationService,
   markAllNotificationsAsRead,
@@ -173,13 +174,15 @@ export function NotificationsPage() {
         ))}
       </section>
 
+      <PushDevPanel />
+
       {preferences && (
         <section className="panel legacy-panel notification-preferences">
           <div>
             <p className="legacy-kicker">Preferencias</p>
             <h3>Qué avisos querés recibir</h3>
             <p className="muted">
-              Las preferencias se guardan en tu perfil. Los avisos dentro de la aplicación ya son reales y se actualizan en tiempo real; correo y push quedan para una etapa posterior.
+              Las preferencias se guardan en tu perfil. Los avisos dentro de la aplicación son reales y se actualizan en tiempo real. En DEV también podés validar un push real de navegador mediante Firebase Cloud Messaging; el envío automático de push y correo queda para una etapa con backend.
             </p>
           </div>
 
@@ -201,7 +204,7 @@ export function NotificationsPage() {
           </label>
 
           <div className="cuotas-info-box">
-            <strong>Canales externos.</strong> Correo electrónico y notificaciones push todavía no realizan envíos reales. Se conectarán a un proveedor/backend antes de habilitarlos.
+            <strong>Sin Blaze.</strong> La prueba push de DEV utiliza FCM y el compositor de Firebase Console, por lo que no requiere Cloud Functions. Correo y automatización de push no se simulan mientras no exista un backend gratuito adecuado.
           </div>
         </section>
       )}

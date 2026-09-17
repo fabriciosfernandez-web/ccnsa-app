@@ -188,6 +188,66 @@ function buildPages(input: EstadoCuentaPdfInput) {
     y -= 19
   }
 
+  const addObligationTotals = () => {
+    const vigentes = input.account.obligaciones.filter((item) => item.estadoCalculado !== 'ANULADA' && item.estadoCalculado !== 'EXENTA')
+    const totalImporte = vigentes.reduce((sum, item) => sum + item.importe, 0)
+    const totalAplicado = vigentes.reduce((sum, item) => sum + item.importeAplicado, 0)
+    const totalPendiente = vigentes.reduce((sum, item) => sum + item.saldoPendiente, 0)
+    const excluidas = input.account.obligaciones.length - vigentes.length
+
+    if (y - 42 < 62) {
+      addPage()
+      sectionTitle('Obligaciones (totales)')
+    }
+
+    page.rects.push({ x: 44, y: y - 5, width: 507, height: 23, fill: SURFACE, stroke: BORDER, strokeWidth: 0.6 })
+    page.lines.push({ x: 108, y: y + 2, text: 'TOTALES VIGENTES', size: 7.1, font: 'F2', color: NAVY })
+    page.lines.push({ x: 304, y: y + 2, text: truncate(money(totalImporte), 13), size: 7.1, font: 'F2', color: NAVY })
+    page.lines.push({ x: 375, y: y + 2, text: truncate(money(totalAplicado), 13), size: 7.1, font: 'F2', color: NAVY })
+    page.lines.push({ x: 446, y: y + 2, text: truncate(money(totalPendiente), 13), size: 7.1, font: 'F2', color: totalPendiente > 0 ? WARNING : SUCCESS })
+    y -= 26
+
+    if (excluidas > 0) {
+      page.lines.push({
+        x: 44,
+        y,
+        text: `Nota: ${excluidas} obligación${excluidas === 1 ? '' : 'es'} EXENTA/ANULADA${excluidas === 1 ? '' : 'S'} se muestra${excluidas === 1 ? '' : 'n'} como referencia y no integra${excluidas === 1 ? '' : 'n'} estos totales.`,
+        size: 6.4,
+        font: 'F1',
+        color: MUTED,
+      })
+      y -= 16
+    }
+  }
+
+  const addPaymentTotals = (activePayments: PagoCalculado[]) => {
+    const totalImporte = activePayments.reduce((sum, item) => sum + item.importe, 0)
+    const totalAplicado = activePayments.reduce((sum, item) => sum + item.importeAplicado, 0)
+    const totalFavor = activePayments.reduce((sum, item) => sum + item.saldoDisponible, 0)
+
+    if (y - 56 < 62) {
+      addPage()
+      sectionTitle('Pagos (totales)')
+    }
+
+    page.rects.push({ x: 44, y: y - 5, width: 507, height: 23, fill: SURFACE, stroke: BORDER, strokeWidth: 0.6 })
+    page.lines.push({ x: 51, y: y + 2, text: 'TOTALES', size: 7.1, font: 'F2', color: NAVY })
+    page.lines.push({ x: 112, y: y + 2, text: truncate(money(totalImporte), 14), size: 7.1, font: 'F2', color: NAVY })
+    page.lines.push({ x: 196, y: y + 2, text: truncate(money(totalAplicado), 14), size: 7.1, font: 'F2', color: NAVY })
+    page.lines.push({ x: 280, y: y + 2, text: truncate(money(totalFavor), 14), size: 7.1, font: 'F2', color: totalFavor > 0 ? SUCCESS : NAVY })
+    y -= 29
+
+    page.lines.push({
+      x: 44,
+      y,
+      text: `Conciliación: pendiente ${money(input.account.saldoPendiente)} - saldo a favor ${money(input.account.saldoFavor)} = saldo neto ${money(input.account.saldoNeto)}.`,
+      size: 7,
+      font: 'F2',
+      color: input.account.saldoNeto > 0 ? WARNING : input.account.saldoNeto < 0 ? SUCCESS : NAVY,
+    })
+    y -= 17
+  }
+
   addPage()
 
   line('Estado de cuenta del socio', { size: 17, bold: true, gap: 23, color: NAVY })
@@ -244,6 +304,7 @@ function buildPages(input: EstadoCuentaPdfInput) {
       page.rules.push({ x1: 44, x2: 551, y: y - 5, width: 0.25, color: BORDER })
       y -= 18
     })
+    addObligationTotals()
   }
 
   y -= 10
@@ -270,6 +331,7 @@ function buildPages(input: EstadoCuentaPdfInput) {
       page.rules.push({ x1: 44, x2: 551, y: y - 5, width: 0.25, color: BORDER })
       y -= 18
     })
+    addPaymentTotals(activePayments)
   }
 
   pages.forEach((targetPage, index) => {

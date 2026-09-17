@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useAuth } from '../auth/AuthProvider'
+import { useAuth, userProfileContextLabel } from '../auth/AuthProvider'
 import { appEnvironment } from '../lib/firebase'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
 
@@ -54,6 +54,7 @@ export function AppShell() {
   const { preference, setPreference } = useTheme()
   const meta = routeMeta(location.pathname)
   const configuredLogo = String(import.meta.env.VITE_BRAND_LOGO_URL || '').trim()
+  const profileContext = userProfileContextLabel(profile)
 
   return (
     <div className="app-shell legacy-app-shell">
@@ -116,7 +117,7 @@ export function AppShell() {
         <div className="sidebar-user">
           <span className="legacy-user-label">Sesión iniciada</span>
           <strong>{profile?.displayName || 'Usuario'}</strong>
-          <span>{profile?.role}</span>
+          <span>{profileContext}</span>
           <button className="button secondary" type="button" onClick={() => void logout()}>
             Cerrar sesión
           </button>
@@ -144,7 +145,7 @@ export function AppShell() {
             </label>
             <div className="workspace-user-compact">
               <strong>{profile?.displayName || 'Usuario'}</strong>
-              <span>{profile?.role}</span>
+              <span>{profileContext}</span>
             </div>
           </div>
         </header>

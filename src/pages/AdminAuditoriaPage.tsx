@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { userRoleLabel } from '../auth/AuthProvider'
 import { AdminPageHeader } from '../components/AdminPageHeader'
 import { loadAuditEvents, type AuditEvent } from '../data/auditoria'
 import './admin-auditoria.css'
@@ -89,6 +90,7 @@ export function AdminAuditoriaPage() {
         item.actorNombre,
         item.actorEmail,
         item.actorRol,
+        userRoleLabel(item.actorRol),
         item.actorUid,
         item.concepto,
         item.entity,
@@ -117,12 +119,13 @@ export function AdminAuditoriaPage() {
       ['Registro de auditoría'],
       ['Generado', new Intl.DateTimeFormat('es-PY', { dateStyle: 'short', timeStyle: 'short' }).format(new Date())],
       [],
-      ['Fecha/hora', 'Módulo', 'Acción', 'Usuario', 'Rol', 'Email', 'UID', 'Entidad', 'ID entidad', 'Concepto', 'Importe', 'Motivo'],
+      ['Fecha/hora', 'Módulo', 'Acción', 'Usuario', 'Perfil / comité', 'Rol técnico', 'Email', 'UID', 'Entidad', 'ID entidad', 'Concepto', 'Importe', 'Motivo'],
       ...filtered.map((item) => [
         formatExactDate(item.createdAt),
         item.modulo,
         item.actionLabel,
         item.actorNombre,
+        userRoleLabel(item.actorRol),
         item.actorRol ?? '',
         item.actorEmail ?? '',
         item.actorUid,
@@ -174,7 +177,7 @@ export function AdminAuditoriaPage() {
 
         <div className="audit-filters">
           <label>Módulo<select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}><option value="TODOS">Todos</option>{modules.map((module) => <option key={module} value={module}>{module}</option>)}</select></label>
-          <label>Rol<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}><option value="TODOS">Todos</option>{roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label>
+          <label>Perfil / comité<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}><option value="TODOS">Todos</option>{roles.map((role) => <option key={role} value={role}>{userRoleLabel(role)}</option>)}</select></label>
           <label className="audit-search">Buscar<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Usuario, acción, concepto, motivo…" /></label>
         </div>
 
@@ -194,7 +197,7 @@ export function AdminAuditoriaPage() {
                       <td className="audit-date">{formatDate(item.createdAt)}</td>
                       <td><span className="audit-module">{item.modulo}</span></td>
                       <td><strong>{item.actionLabel}</strong></td>
-                      <td className="audit-user"><strong>{item.actorNombre}</strong><small>{item.actorRol || 'Sin rol registrado'}</small></td>
+                      <td className="audit-user"><strong>{item.actorNombre}</strong><small>{userRoleLabel(item.actorRol)}</small></td>
                       <td><strong>{eventDetail(item)}</strong><small className="audit-secondary">{item.periodo ? `Periodo ${item.periodo}` : item.modulo}</small></td>
                       <td className="audit-amount">{money(item.importe)}</td>
                       <td className="audit-reason">{item.motivo || '—'}</td>
@@ -206,6 +209,7 @@ export function AdminAuditoriaPage() {
                           <div className="audit-detail-grid">
                             <div><span>Fecha exacta</span><strong>{formatExactDate(item.createdAt)}</strong></div>
                             <div><span>Usuario</span><strong>{item.actorNombre}</strong><small>{item.actorEmail || 'Sin email registrado'}</small></div>
+                            <div><span>Perfil visible</span><strong>{userRoleLabel(item.actorRol)}</strong><small>Rol técnico: {item.actorRol || '—'}</small></div>
                             <div><span>UID</span><code>{item.actorUid || '—'}</code></div>
                             <div><span>Acción técnica</span><code>{item.action}</code></div>
                             <div><span>Entidad</span><strong>{item.entity || '—'}</strong><small>{item.entityId || 'Sin ID de entidad'}</small></div>

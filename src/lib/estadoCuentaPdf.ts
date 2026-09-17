@@ -276,8 +276,7 @@ function buildPages(input: EstadoCuentaPdfInput) {
     targetPage.rules.push({ x1: 44, x2: 551, y: 47, width: 0.5, color: BORDER })
     targetPage.lines.push({ x: 44, y: 31, text: 'Comité de Finanzas · Centro Cultural CCNSA', size: 6.8, font: 'F2', color: NAVY })
     targetPage.lines.push({ x: 44, y: 19, text: 'Ante cualquier diferencia, solicite la revisión de comprobantes y aplicaciones de pago al Comité de Finanzas.', size: 6.2, font: 'F1', color: MUTED })
-    const technicalId = input.socioId ? `Socio ID ${input.socioId} · ` : ''
-    targetPage.lines.push({ x: 397, y: 31, text: `${technicalId}Pág. ${index + 1}/${pages.length}`, size: 6.2, font: 'F1', color: MUTED })
+    targetPage.lines.push({ x: 500, y: 31, text: `Pág. ${index + 1}/${pages.length}`, size: 6.2, font: 'F1', color: MUTED })
   })
 
   return pages

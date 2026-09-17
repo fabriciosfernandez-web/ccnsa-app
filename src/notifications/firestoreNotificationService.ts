@@ -3,14 +3,17 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
   type Timestamp,
+  type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import type { NotificationService } from './NotificationService'
@@ -83,13 +86,48 @@ function mapPreferences(socioId: string, data?: DocumentData): NotificationPrefe
   }
 }
 
+function notificationsQuery(socioId: string) {
+  const database = requireDb()
+  return query(collection(database, 'notifications'), where('socioId', '==', socioId))
+}
+
+function sortNotifications(items: AccountNotification[]) {
+  return [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export function subscribeNotificationsForSocio(
+  socioId: string,
+  onItems: (items: AccountNotification[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  return onSnapshot(
+    notificationsQuery(socioId),
+    (snapshot) => onItems(sortNotifications(snapshot.docs.map(mapNotification))),
+    (caught) => onError?.(caught instanceof Error ? caught : new Error('No fue posible escuchar las notificaciones.')),
+  )
+}
+
+export async function markAllNotificationsAsRead(socioId: string) {
+  const database = requireDb()
+  const snapshot = await getDocs(notificationsQuery(socioId))
+  const unread = snapshot.docs.filter((item) => item.data().status !== 'READ')
+  if (unread.length === 0) return 0
+
+  const batch = writeBatch(database)
+  unread.forEach((item) => {
+    batch.update(item.ref, {
+      status: 'READ',
+      readAt: serverTimestamp(),
+    })
+  })
+  await batch.commit()
+  return unread.length
+}
+
 export const firestoreNotificationService: NotificationService = {
   async listForSocio(socioId) {
-    const database = requireDb()
-    const snapshot = await getDocs(query(collection(database, 'notifications'), where('socioId', '==', socioId)))
-    return snapshot.docs
-      .map(mapNotification)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const snapshot = await getDocs(notificationsQuery(socioId))
+    return sortNotifications(snapshot.docs.map(mapNotification))
   },
 
   async countUnread(socioId) {

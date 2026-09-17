@@ -8,6 +8,7 @@ interface PdfTextLine {
   text: string
   size: number
   font: PdfFont
+  color?: string
 }
 
 interface PdfRule {
@@ -15,11 +16,23 @@ interface PdfRule {
   x2: number
   y: number
   width?: number
+  color?: string
+}
+
+interface PdfRect {
+  x: number
+  y: number
+  width: number
+  height: number
+  fill?: string
+  stroke?: string
+  strokeWidth?: number
 }
 
 interface PdfPage {
   lines: PdfTextLine[]
   rules: PdfRule[]
+  rects: PdfRect[]
 }
 
 export interface EstadoCuentaPdfInput {
@@ -28,6 +41,20 @@ export interface EstadoCuentaPdfInput {
   account: EstadoCuenta
   generatedAt?: Date
 }
+
+const NAVY = '0.055 0.145 0.205'
+const NAVY_SOFT = '0.105 0.245 0.325'
+const GOLD = '0.765 0.640 0.355'
+const TEXT = '0.075 0.125 0.165'
+const MUTED = '0.365 0.430 0.475'
+const BORDER = '0.820 0.850 0.870'
+const SURFACE = '0.955 0.968 0.976'
+const SURFACE_ALT = '0.980 0.985 0.989'
+const WHITE = '1 1 1'
+const SUCCESS = '0.105 0.455 0.270'
+const WARNING = '0.650 0.420 0.060'
+const DANGER = '0.680 0.175 0.170'
+const INFO = '0.120 0.355 0.570'
 
 const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY')}`
 
@@ -61,6 +88,13 @@ function statusLabel(item: ObligacionCalculada) {
   return 'PENDIENTE'
 }
 
+function statusColor(item: ObligacionCalculada) {
+  if (item.estadoCalculado === 'PAGADA') return SUCCESS
+  if (item.estadoCalculado === 'EXENTA') return INFO
+  if (item.estadoCalculado === 'ANULADA') return DANGER
+  return WARNING
+}
+
 function pagoDetalle(item: PagoCalculado) {
   const reference = item.referencia ? ` · Ref. ${item.referencia}` : ''
   return `${item.medioPago || 'Sin medio'}${reference}`
@@ -73,24 +107,34 @@ function yearFromPeriod(periodo: string) {
 
 function buildPages(input: EstadoCuentaPdfInput) {
   const pages: PdfPage[] = []
-  let page: PdfPage = { lines: [], rules: [] }
-  let y = 792
+  const generatedAt = input.generatedAt ?? new Date()
+  const currentYear = generatedAt.getFullYear()
+  let page: PdfPage = { lines: [], rules: [], rects: [] }
+  let y = 718
+
+  const addBrandHeader = () => {
+    page.rects.push({ x: 0, y: 752, width: 595, height: 90, fill: NAVY })
+    page.rects.push({ x: 44, y: 774, width: 42, height: 42, fill: NAVY_SOFT, stroke: GOLD, strokeWidth: 0.9 })
+    page.lines.push({ x: 54, y: 789, text: 'CC', size: 15, font: 'F2', color: GOLD })
+    page.lines.push({ x: 101, y: 802, text: 'CENTRO CULTURAL', size: 7.5, font: 'F2', color: '0.74 0.80 0.84' })
+    page.lines.push({ x: 101, y: 783, text: 'CCNSA', size: 15, font: 'F2', color: WHITE })
+    page.lines.push({ x: 101, y: 769, text: 'Comité de Finanzas', size: 7.5, font: 'F1', color: '0.82 0.86 0.89' })
+    page.lines.push({ x: 444, y: 794, text: 'ESTADO DE CUENTA', size: 9, font: 'F2', color: WHITE })
+    page.lines.push({ x: 444, y: 778, text: truncate(input.socioNombre, 22), size: 7.5, font: 'F1', color: '0.84 0.88 0.91' })
+  }
 
   const addPage = () => {
-    page = { lines: [], rules: [] }
+    page = { lines: [], rules: [], rects: [] }
     pages.push(page)
-    y = 792
-    page.lines.push({ x: 44, y, text: 'CENTRO CULTURAL CCNSA', size: 9, font: 'F2' })
-    page.lines.push({ x: 430, y, text: `Página ${pages.length}`, size: 8, font: 'F1' })
-    y -= 19
-    page.rules.push({ x1: 44, x2: 551, y: y + 6 })
+    addBrandHeader()
+    y = 718
   }
 
   const ensure = (space: number) => {
-    if (y - space < 52) addPage()
+    if (y - space < 62) addPage()
   }
 
-  const line = (text: string, options?: { x?: number; size?: number; bold?: boolean; gap?: number }) => {
+  const line = (text: string, options?: { x?: number; size?: number; bold?: boolean; gap?: number; color?: string }) => {
     ensure((options?.gap ?? 16) + 2)
     page.lines.push({
       x: options?.x ?? 44,
@@ -98,25 +142,58 @@ function buildPages(input: EstadoCuentaPdfInput) {
       text,
       size: options?.size ?? 9,
       font: options?.bold ? 'F2' : 'F1',
+      color: options?.color ?? TEXT,
     })
     y -= options?.gap ?? 16
   }
 
-  const rule = () => {
+  const rule = (color = BORDER) => {
     ensure(12)
-    page.rules.push({ x1: 44, x2: 551, y: y + 4 })
+    page.rules.push({ x1: 44, x2: 551, y: y + 4, color })
     y -= 10
+  }
+
+  const sectionTitle = (title: string, subtitle?: string) => {
+    ensure(subtitle ? 44 : 29)
+    page.lines.push({ x: 44, y, text: title, size: 10.5, font: 'F2', color: NAVY })
+    y -= 14
+    if (subtitle) {
+      page.lines.push({ x: 44, y, text: subtitle, size: 7.4, font: 'F1', color: MUTED })
+      y -= 18
+    } else {
+      y -= 8
+    }
+  }
+
+  const obligationHeader = () => {
+    page.rects.push({ x: 44, y: y - 4, width: 507, height: 19, fill: NAVY })
+    const headerY = y + 2
+    page.lines.push({ x: 51, y: headerY, text: 'Periodo', size: 7.1, font: 'F2', color: WHITE })
+    page.lines.push({ x: 108, y: headerY, text: 'Concepto', size: 7.1, font: 'F2', color: WHITE })
+    page.lines.push({ x: 304, y: headerY, text: 'Importe', size: 7.1, font: 'F2', color: WHITE })
+    page.lines.push({ x: 375, y: headerY, text: 'Aplicado', size: 7.1, font: 'F2', color: WHITE })
+    page.lines.push({ x: 446, y: headerY, text: 'Pendiente', size: 7.1, font: 'F2', color: WHITE })
+    page.lines.push({ x: 515, y: headerY, text: 'Estado', size: 7.1, font: 'F2', color: WHITE })
+    y -= 19
+  }
+
+  const paymentHeader = () => {
+    page.rects.push({ x: 44, y: y - 4, width: 507, height: 19, fill: NAVY })
+    const headerY = y + 2
+    page.lines.push({ x: 51, y: headerY, text: 'Fecha', size: 7.1, font: 'F2', color: WHITE })
+    page.lines.push({ x: 112, y: headerY, text: 'Importe', size: 7.1, font: 'F2', color: WHITE })
+    page.lines.push({ x: 196, y: headerY, text: 'Aplicado', size: 7.1, font: 'F2', color: WHITE })
+    page.lines.push({ x: 280, y: headerY, text: 'A favor', size: 7.1, font: 'F2', color: WHITE })
+    page.lines.push({ x: 361, y: headerY, text: 'Medio / referencia', size: 7.1, font: 'F2', color: WHITE })
+    y -= 19
   }
 
   addPage()
 
-  line('ESTADO DE CUENTA', { size: 18, bold: true, gap: 25 })
-  line(input.socioNombre, { size: 12, bold: true, gap: 18 })
-  if (input.socioId) line(`Socio ID: ${input.socioId}`, { size: 8, gap: 14 })
-  line(`Emitido: ${new Intl.DateTimeFormat('es-PY', { dateStyle: 'long', timeStyle: 'short' }).format(input.generatedAt ?? new Date())}`, { size: 8, gap: 18 })
-  rule()
+  line('Estado de cuenta del socio', { size: 17, bold: true, gap: 23, color: NAVY })
+  line(input.socioNombre, { size: 11.5, bold: true, gap: 16 })
+  line(`Emitido: ${new Intl.DateTimeFormat('es-PY', { dateStyle: 'long', timeStyle: 'short' }).format(generatedAt)}`, { size: 7.7, gap: 20, color: MUTED })
 
-  const currentYear = new Date().getFullYear()
   const deuda2025 = input.account.obligaciones
     .filter((item) => yearFromPeriod(item.periodo) === 2025)
     .reduce((sum, item) => sum + item.saldoPendiente, 0)
@@ -124,82 +201,104 @@ function buildPages(input: EstadoCuentaPdfInput) {
     .filter((item) => yearFromPeriod(item.periodo) === currentYear)
     .reduce((sum, item) => sum + item.saldoPendiente, 0)
 
-  line('RESUMEN', { size: 11, bold: true, gap: 19 })
-  line(`Saldo pendiente total: ${money(input.account.saldoPendiente)}`, { bold: true })
-  line(`Saldo a favor: ${money(input.account.saldoFavor)}`)
-  line(`Saldo neto: ${money(input.account.saldoNeto)}`)
-  line(`Pendiente ${currentYear}: ${money(deudaActual)}`)
-  if (deuda2025 > 0) line(`Deuda 2025: ${money(deuda2025)}`)
-  line(`Total cargos: ${money(input.account.totalCargos)} · Total pagos: ${money(input.account.totalPagos)}`, { gap: 20 })
+  sectionTitle('Resumen de cuenta')
+  const cards = [
+    ['Pendiente total', money(input.account.saldoPendiente)],
+    [`Pendiente ${currentYear}`, money(deudaActual)],
+    ['Saldo a favor', money(input.account.saldoFavor)],
+    ['Saldo neto', money(input.account.saldoNeto)],
+  ] as const
+  const cardWidth = 119.25
+  const cardGap = 10
+  const cardY = y - 46
+  cards.forEach(([label, value], index) => {
+    const x = 44 + index * (cardWidth + cardGap)
+    page.rects.push({ x, y: cardY, width: cardWidth, height: 48, fill: SURFACE, stroke: BORDER, strokeWidth: 0.5 })
+    page.lines.push({ x: x + 10, y: cardY + 31, text: label, size: 6.7, font: 'F2', color: MUTED })
+    page.lines.push({ x: x + 10, y: cardY + 14, text: truncate(value, 18), size: 10.3, font: 'F2', color: NAVY })
+  })
+  y = cardY - 15
+  if (deuda2025 > 0) line(`Deuda 2025: ${money(deuda2025)}`, { size: 8, bold: true, gap: 14, color: WARNING })
+  line(`Total cargos: ${money(input.account.totalCargos)}   ·   Total pagos: ${money(input.account.totalPagos)}`, { size: 7.8, gap: 18, color: MUTED })
   rule()
 
-  line('OBLIGACIONES', { size: 11, bold: true, gap: 19 })
-  page.lines.push({ x: 44, y, text: 'Periodo', size: 7.5, font: 'F2' })
-  page.lines.push({ x: 104, y, text: 'Concepto', size: 7.5, font: 'F2' })
-  page.lines.push({ x: 302, y, text: 'Importe', size: 7.5, font: 'F2' })
-  page.lines.push({ x: 374, y, text: 'Aplicado', size: 7.5, font: 'F2' })
-  page.lines.push({ x: 447, y, text: 'Pendiente', size: 7.5, font: 'F2' })
-  page.lines.push({ x: 518, y, text: 'Estado', size: 7.5, font: 'F2' })
-  y -= 14
-  page.rules.push({ x1: 44, x2: 551, y: y + 5 })
+  sectionTitle('Obligaciones', 'Cuotas, membresías y demás cargos registrados en la cuenta.')
+  obligationHeader()
 
   if (input.account.obligaciones.length === 0) {
-    line('Sin obligaciones registradas.', { size: 8 })
+    line('Sin obligaciones registradas.', { size: 8, color: MUTED })
   } else {
-    for (const item of input.account.obligaciones) {
-      ensure(20)
-      page.lines.push({ x: 44, y, text: truncate(item.periodo || '—', 10), size: 7.2, font: 'F1' })
-      page.lines.push({ x: 104, y, text: truncate(item.concepto || 'Obligación', 32), size: 7.2, font: 'F1' })
-      page.lines.push({ x: 302, y, text: truncate(money(item.importe), 14), size: 7.2, font: 'F1' })
-      page.lines.push({ x: 374, y, text: truncate(money(item.importeAplicado), 14), size: 7.2, font: 'F1' })
-      page.lines.push({ x: 447, y, text: truncate(money(item.saldoPendiente), 14), size: 7.2, font: 'F1' })
-      page.lines.push({ x: 518, y, text: statusLabel(item), size: 6.8, font: 'F2' })
-      y -= 15
-    }
+    input.account.obligaciones.forEach((item, index) => {
+      if (y - 20 < 62) {
+        addPage()
+        sectionTitle('Obligaciones (continuación)')
+        obligationHeader()
+      }
+      if (index % 2 === 1) page.rects.push({ x: 44, y: y - 4, width: 507, height: 18, fill: SURFACE_ALT })
+      page.lines.push({ x: 51, y, text: truncate(item.periodo || '—', 10), size: 7, font: 'F1', color: TEXT })
+      page.lines.push({ x: 108, y, text: truncate(item.concepto || 'Obligación', 31), size: 7, font: 'F1', color: TEXT })
+      page.lines.push({ x: 304, y, text: truncate(money(item.importe), 13), size: 7, font: 'F1', color: TEXT })
+      page.lines.push({ x: 375, y, text: truncate(money(item.importeAplicado), 13), size: 7, font: 'F1', color: TEXT })
+      page.lines.push({ x: 446, y, text: truncate(money(item.saldoPendiente), 13), size: 7, font: 'F1', color: TEXT })
+      page.lines.push({ x: 515, y, text: statusLabel(item), size: 6.4, font: 'F2', color: statusColor(item) })
+      page.rules.push({ x1: 44, x2: 551, y: y - 5, width: 0.25, color: BORDER })
+      y -= 18
+    })
   }
 
-  y -= 8
+  y -= 10
   rule()
-  line('PAGOS', { size: 11, bold: true, gap: 19 })
-  page.lines.push({ x: 44, y, text: 'Fecha', size: 7.5, font: 'F2' })
-  page.lines.push({ x: 104, y, text: 'Importe', size: 7.5, font: 'F2' })
-  page.lines.push({ x: 190, y, text: 'Aplicado', size: 7.5, font: 'F2' })
-  page.lines.push({ x: 276, y, text: 'A favor', size: 7.5, font: 'F2' })
-  page.lines.push({ x: 357, y, text: 'Medio / referencia', size: 7.5, font: 'F2' })
-  y -= 14
-  page.rules.push({ x1: 44, x2: 551, y: y + 5 })
+  sectionTitle('Pagos', 'Detalle de pagos vigentes, aplicaciones y referencias disponibles.')
+  paymentHeader()
 
   const activePayments = input.account.pagos.filter((item) => item.estado !== 'ANULADO')
   if (activePayments.length === 0) {
-    line('Sin pagos registrados.', { size: 8 })
+    line('Sin pagos registrados.', { size: 8, color: MUTED })
   } else {
-    for (const item of activePayments) {
-      ensure(20)
-      page.lines.push({ x: 44, y, text: truncate(item.fecha || '—', 11), size: 7.2, font: 'F1' })
-      page.lines.push({ x: 104, y, text: truncate(money(item.importe), 15), size: 7.2, font: 'F1' })
-      page.lines.push({ x: 190, y, text: truncate(money(item.importeAplicado), 15), size: 7.2, font: 'F1' })
-      page.lines.push({ x: 276, y, text: truncate(money(item.saldoDisponible), 15), size: 7.2, font: 'F1' })
-      page.lines.push({ x: 357, y, text: truncate(pagoDetalle(item), 34), size: 7.2, font: 'F1' })
-      y -= 15
-    }
+    activePayments.forEach((item, index) => {
+      if (y - 20 < 62) {
+        addPage()
+        sectionTitle('Pagos (continuación)')
+        paymentHeader()
+      }
+      if (index % 2 === 1) page.rects.push({ x: 44, y: y - 4, width: 507, height: 18, fill: SURFACE_ALT })
+      page.lines.push({ x: 51, y, text: truncate(item.fecha || '—', 11), size: 7, font: 'F1', color: TEXT })
+      page.lines.push({ x: 112, y, text: truncate(money(item.importe), 14), size: 7, font: 'F1', color: TEXT })
+      page.lines.push({ x: 196, y, text: truncate(money(item.importeAplicado), 14), size: 7, font: 'F1', color: TEXT })
+      page.lines.push({ x: 280, y, text: truncate(money(item.saldoDisponible), 14), size: 7, font: 'F1', color: item.saldoDisponible > 0 ? SUCCESS : TEXT })
+      page.lines.push({ x: 361, y, text: truncate(pagoDetalle(item), 32), size: 7, font: 'F1', color: TEXT })
+      page.rules.push({ x1: 44, x2: 551, y: y - 5, width: 0.25, color: BORDER })
+      y -= 18
+    })
   }
 
-  y -= 12
-  line('Documento generado por el portal de socios de CCNSA. Los registros anulados no integran los saldos vigentes.', { size: 7.5, gap: 11 })
-  line('Ante cualquier diferencia, contacte a Tesorería para la revisión de los comprobantes y aplicaciones de pago.', { size: 7.5, gap: 11 })
+  pages.forEach((targetPage, index) => {
+    targetPage.rules.push({ x1: 44, x2: 551, y: 47, width: 0.5, color: BORDER })
+    targetPage.lines.push({ x: 44, y: 31, text: 'Comité de Finanzas · Centro Cultural CCNSA', size: 6.8, font: 'F2', color: NAVY })
+    targetPage.lines.push({ x: 44, y: 19, text: 'Ante cualquier diferencia, solicite la revisión de comprobantes y aplicaciones de pago al Comité de Finanzas.', size: 6.2, font: 'F1', color: MUTED })
+    const technicalId = input.socioId ? `Socio ID ${input.socioId} · ` : ''
+    targetPage.lines.push({ x: 397, y: 31, text: `${technicalId}Pág. ${index + 1}/${pages.length}`, size: 6.2, font: 'F1', color: MUTED })
+  })
 
   return pages
 }
 
 function renderPage(page: PdfPage) {
   const commands: string[] = []
-  commands.push('0.09 0.17 0.23 rg')
+  for (const rect of page.rects) {
+    if (rect.fill) commands.push(`${rect.fill} rg`)
+    if (rect.stroke) commands.push(`${rect.stroke} RG`)
+    if (rect.strokeWidth) commands.push(`${rect.strokeWidth} w`)
+    commands.push(`${rect.x} ${rect.y} ${rect.width} ${rect.height} re`)
+    commands.push(rect.fill && rect.stroke ? 'B' : rect.fill ? 'f' : 'S')
+  }
   for (const rule of page.rules) {
-    commands.push('0.80 0.84 0.87 RG')
+    commands.push(`${rule.color ?? BORDER} RG`)
     commands.push(`${rule.width ?? 0.6} w`)
     commands.push(`${rule.x1} ${rule.y} m ${rule.x2} ${rule.y} l S`)
   }
   for (const item of page.lines) {
+    commands.push(`${item.color ?? TEXT} rg`)
     commands.push('BT')
     commands.push(`/${item.font} ${item.size} Tf`)
     commands.push(`${item.x} ${item.y} Td`)

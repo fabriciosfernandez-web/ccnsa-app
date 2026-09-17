@@ -1,6 +1,7 @@
 export type NotificationKind =
   | 'ACCOUNT_STATEMENT_READY'
   | 'PAYMENT_POSTED'
+  | 'OBLIGATION_POSTED'
   | 'OVERDUE_REMINDER'
   | 'GENERAL_NOTICE'
 
@@ -21,6 +22,9 @@ export interface AccountNotification {
   amount?: number
   currency?: 'PYG'
   actionUrl?: string
+  sourceType?: string
+  sourceId?: string
+  deduplicationKey?: string
 }
 
 export interface NotificationPreferences {

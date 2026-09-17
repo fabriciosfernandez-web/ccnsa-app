@@ -1,14 +1,14 @@
 .socio-portal {
-  gap: 24px;
+  gap: 22px;
 }
 
 .socio-hero {
   position: relative;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(270px, 0.55fr);
   gap: 24px;
-  padding: clamp(24px, 4vw, 38px);
+  padding: clamp(22px, 3vw, 32px);
   border: 1px solid color-mix(in srgb, var(--brand-accent) 22%, var(--border));
   border-radius: var(--radius-lg);
   background:
@@ -61,15 +61,15 @@
 .socio-hero-balance {
   align-self: center;
   display: grid;
-  gap: 8px;
-  padding: 20px;
+  gap: 7px;
+  padding: 18px 20px;
   border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(10px);
 }
 
-.socio-hero-balance span {
+.socio-hero-balance > span:first-child {
   color: #b8c6cf;
   font-size: 0.78rem;
   font-weight: 700;
@@ -85,9 +85,27 @@
   color: #d5dde2;
 }
 
-.socio-actions {
+.socio-hero-balance .status-badge {
+  justify-self: start;
+  margin-top: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.socio-hero-balance .status-badge.socio-status-warning {
+  color: #30260f;
+  background: #e7d39d;
+}
+
+.socio-hero-balance .status-badge.success {
+  color: #123426;
+  background: #bfe0ce;
+}
+
+.socio-toolbar {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
@@ -125,12 +143,12 @@
 }
 
 .socio-metrics .metric-card {
-  min-height: 118px;
+  min-height: 112px;
 }
 
 .socio-summary-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.55fr);
   gap: 18px;
   align-items: start;
 }
@@ -184,12 +202,7 @@
   color: var(--text-tertiary);
 }
 
-.socio-notification-card {
-  position: sticky;
-  top: calc(var(--topbar-height) + 24px);
-}
-
-.socio-notification-card .button {
+.socio-recent-card .button {
   margin-top: 8px;
 }
 
@@ -254,24 +267,30 @@
   margin: 5px 0 0;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1200px) {
   .socio-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
 
+@media (max-width: 1100px) {
   .socio-summary-grid,
   .socio-hero {
     grid-template-columns: 1fr;
-  }
-
-  .socio-notification-card {
-    position: static;
   }
 }
 
 @media (max-width: 720px) {
   .socio-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .socio-toolbar {
+    align-items: stretch;
+  }
+
+  .socio-toolbar > .button {
+    width: 100%;
   }
 
   .socio-tabs {

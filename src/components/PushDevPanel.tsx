@@ -7,6 +7,7 @@ import {
   subscribeForegroundMessages,
   type PushSetupState,
 } from '../notifications/webPushDev'
+import './push-dev-panel.css'
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'No fue posible activar las notificaciones push.'

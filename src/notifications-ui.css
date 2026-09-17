@@ -1,0 +1,43 @@
+.nav-item-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-unread-badge {
+  min-width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: #fff;
+  background: #a54444;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.04);
+}
+
+.nav-list a.active .nav-unread-badge {
+  color: #1a2630;
+  background: #e4c982;
+}
+
+.notification-card.unread {
+  border-color: color-mix(in srgb, var(--brand-accent) 42%, var(--border));
+  box-shadow: inset 3px 0 0 var(--brand-accent), var(--shadow-sm);
+}
+
+.notification-card-header {
+  align-items: flex-start;
+}
+
+@media (max-width: 720px) {
+  .nav-unread-badge {
+    margin-left: auto;
+  }
+}

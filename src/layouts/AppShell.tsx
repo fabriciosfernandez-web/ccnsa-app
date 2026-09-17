@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth, userProfileContextLabel } from '../auth/AuthProvider'
 import { appEnvironment } from '../lib/firebase'
+import { subscribeNotificationsForSocio } from '../notifications/firestoreNotificationService'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
 
 type NavIconName = 'dashboard' | 'users' | 'finance' | 'activity' | 'settings' | 'rules' | 'audit' | 'migration' | 'check' | 'account' | 'bell'
@@ -25,11 +26,12 @@ function NavIcon({ name }: { name: NavIconName }) {
   return <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true" {...common}>{paths[name]}</svg>
 }
 
-function navItem(to: string, label: string, icon: NavIconName, end = false) {
+function navItem(to: string, label: string, icon: NavIconName, end = false, badge = 0) {
   return (
     <NavLink to={to} end={end} className={({ isActive }) => (isActive ? 'active' : '')}>
       <NavIcon name={icon} />
-      <span>{label}</span>
+      <span className="nav-item-label">{label}</span>
+      {badge > 0 && <span className="nav-unread-badge" aria-label={`${badge} sin leer`}>{badge > 99 ? '99+' : badge}</span>}
     </NavLink>
   )
 }
@@ -52,9 +54,23 @@ export function AppShell() {
   const { profile, logout } = useAuth()
   const location = useLocation()
   const { preference, setPreference } = useTheme()
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const meta = routeMeta(location.pathname)
   const configuredLogo = String(import.meta.env.VITE_BRAND_LOGO_URL || '').trim()
   const profileContext = userProfileContextLabel(profile)
+
+  useEffect(() => {
+    if (profile?.role !== 'SOCIO' || !profile.socioId) {
+      setUnreadNotifications(0)
+      return
+    }
+
+    return subscribeNotificationsForSocio(
+      profile.socioId,
+      (items) => setUnreadNotifications(items.filter((item) => item.status === 'UNREAD').length),
+      () => setUnreadNotifications(0),
+    )
+  }, [profile?.role, profile?.socioId])
 
   return (
     <div className="app-shell legacy-app-shell">
@@ -80,7 +96,7 @@ export function AppShell() {
             <div className="nav-group">
               <span className="nav-group-label">Portal del socio</span>
               {navItem('/socio', 'Mi estado de cuenta', 'account', true)}
-              {navItem('/socio/notificaciones', 'Notificaciones', 'bell')}
+              {navItem('/socio/notificaciones', 'Notificaciones', 'bell', false, unreadNotifications)}
             </div>
           ) : (
             <>

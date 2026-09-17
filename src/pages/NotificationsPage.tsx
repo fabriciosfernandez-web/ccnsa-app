@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
-import { firestoreNotificationService } from '../notifications/firestoreNotificationService'
+import { PushDevPanel } from '../components/PushDevPanel'
+import {
+  firestoreNotificationService,
+  markAllNotificationsAsRead,
+  subscribeNotificationsForSocio,
+} from '../notifications/firestoreNotificationService'
 import type { AccountNotification, NotificationKind, NotificationPreferences } from '../notifications/types'
 
 function formatDate(value: string) {
@@ -30,31 +35,36 @@ export function NotificationsPage() {
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null)
   const [loading, setLoading] = useState(true)
   const [savingPreference, setSavingPreference] = useState<string | null>(null)
+  const [markingAll, setMarkingAll] = useState(false)
   const [error, setError] = useState('')
 
-  async function refresh() {
+  useEffect(() => {
     if (!socioId) {
       setError('Tu perfil todavía no está vinculado a una ficha de socio.')
       setLoading(false)
       return
     }
-    try {
-      setError('')
-      const [notifications, nextPreferences] = await Promise.all([
-        firestoreNotificationService.listForSocio(socioId),
-        firestoreNotificationService.getPreferences(socioId),
-      ])
-      setItems(notifications)
-      setPreferences(nextPreferences)
-    } catch (caught) {
-      setError(errorMessage(caught))
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  useEffect(() => {
-    void refresh()
+    setLoading(true)
+    setError('')
+
+    const unsubscribe = subscribeNotificationsForSocio(
+      socioId,
+      (notifications) => {
+        setItems(notifications)
+        setLoading(false)
+      },
+      (caught) => {
+        setError(errorMessage(caught))
+        setLoading(false)
+      },
+    )
+
+    void firestoreNotificationService.getPreferences(socioId)
+      .then(setPreferences)
+      .catch((caught) => setError(errorMessage(caught)))
+
+    return unsubscribe
   }, [socioId])
 
   const unreadCount = useMemo(
@@ -67,13 +77,21 @@ export function NotificationsPage() {
     try {
       setError('')
       await firestoreNotificationService.markAsRead(notificationId, socioId)
-      setItems((current) => current.map((item) => (
-        item.id === notificationId
-          ? { ...item, status: 'READ', readAt: new Date().toISOString() }
-          : item
-      )))
     } catch (caught) {
       setError(errorMessage(caught))
+    }
+  }
+
+  async function markAllAsRead() {
+    if (!socioId || unreadCount === 0) return
+    try {
+      setError('')
+      setMarkingAll(true)
+      await markAllNotificationsAsRead(socioId)
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setMarkingAll(false)
     }
   }
 
@@ -108,9 +126,16 @@ export function NotificationsPage() {
                 : `Tenés ${unreadCount} notificación${unreadCount === 1 ? '' : 'es'} sin leer.`}
           </p>
         </div>
-        <span className={`status-badge ${unreadCount > 0 ? 'danger' : 'success'}`}>
-          {loading ? 'Cargando' : unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día'}
-        </span>
+        <div className="socio-actions">
+          {unreadCount > 0 && (
+            <button className="button secondary" type="button" onClick={() => void markAllAsRead()} disabled={markingAll}>
+              {markingAll ? 'Actualizando…' : 'Marcar todas como leídas'}
+            </button>
+          )}
+          <span className={`status-badge ${unreadCount > 0 ? 'danger' : 'success'}`}>
+            {loading ? 'Cargando' : unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día'}
+          </span>
+        </div>
       </header>
 
       {error && <div className="notice error"><strong>Notificaciones.</strong> {error}</div>}
@@ -149,13 +174,15 @@ export function NotificationsPage() {
         ))}
       </section>
 
+      <PushDevPanel />
+
       {preferences && (
         <section className="panel legacy-panel notification-preferences">
           <div>
             <p className="legacy-kicker">Preferencias</p>
             <h3>Qué avisos querés recibir</h3>
             <p className="muted">
-              Estas preferencias ya se guardan en tu perfil. El canal dentro de la aplicación está conectado; correo y push quedan preparados para una etapa posterior.
+              Las preferencias se guardan en tu perfil. Los avisos dentro de la aplicación son reales y se actualizan en tiempo real. En DEV también podés validar un push real de navegador mediante Firebase Cloud Messaging; el envío automático de push y correo queda para una etapa con backend.
             </p>
           </div>
 
@@ -177,7 +204,7 @@ export function NotificationsPage() {
           </label>
 
           <div className="cuotas-info-box">
-            <strong>Canales externos.</strong> Correo electrónico y notificaciones push todavía no realizan envíos reales. Se conectarán a un proveedor/backend antes de habilitarlos.
+            <strong>Sin Blaze.</strong> La prueba push de DEV utiliza FCM y el compositor de Firebase Console, por lo que no requiere Cloud Functions. Correo y automatización de push no se simulan mientras no exista un backend gratuito adecuado.
           </div>
         </section>
       )}

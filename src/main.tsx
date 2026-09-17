@@ -7,6 +7,7 @@ import './admin-ui.css'
 import './theme.css'
 import './dark-theme.css'
 import './dark-theme-polish.css'
+import './notifications-ui.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

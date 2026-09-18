@@ -143,7 +143,7 @@ export function NotificationsPage() {
     try {
       const next = { ...preferences, push: false }
       await firestoreNotificationService.savePreferences(next)
-      await disableCurrentPushDevice(socioId, user.uid)
+      await disableCurrentPushDevice()
       setPreferences(next)
       setDevicePushEnabled(false)
     } catch (caught) {

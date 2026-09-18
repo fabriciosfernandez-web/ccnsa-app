@@ -45,3 +45,11 @@ jobs:
         if: steps.auth_dev_rules.outcome == 'success'
         continue-on-error: true
         run: npx --yes firebase-tools@latest deploy --only firestore:rules --project ccnsa-web-dev --non-interactive
+
+      - name: Install Functions dependencies
+        if: steps.auth_dev_rules.outcome == 'success'
+        run: npm --prefix functions install
+
+      - name: Deploy push Function to DEV
+        if: steps.auth_dev_rules.outcome == 'success'
+        run: npx --yes firebase-tools@latest deploy --only functions:deliverNotificationPush --project ccnsa-web-dev --non-interactive

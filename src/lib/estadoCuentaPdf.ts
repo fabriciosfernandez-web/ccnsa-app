@@ -29,10 +29,28 @@ interface PdfRect {
   strokeWidth?: number
 }
 
+interface PdfImage {
+  x: number
+  y: number
+  width: number
+  height: number
+  name: 'ImLogo'
+  clipCircle?: boolean
+  borderColor?: string
+  borderWidth?: number
+}
+
 interface PdfPage {
   lines: PdfTextLine[]
   rules: PdfRule[]
   rects: PdfRect[]
+  images: PdfImage[]
+}
+
+interface PdfJpeg {
+  bytes: Uint8Array
+  width: number
+  height: number
 }
 
 export interface EstadoCuentaPdfInput {
@@ -109,13 +127,21 @@ function buildPages(input: EstadoCuentaPdfInput) {
   const pages: PdfPage[] = []
   const generatedAt = input.generatedAt ?? new Date()
   const currentYear = generatedAt.getFullYear()
-  let page: PdfPage = { lines: [], rules: [], rects: [] }
+  let page: PdfPage = { lines: [], rules: [], rects: [], images: [] }
   let y = 718
 
   const addBrandHeader = () => {
     page.rects.push({ x: 0, y: 752, width: 595, height: 90, fill: NAVY })
-    page.rects.push({ x: 44, y: 774, width: 42, height: 42, fill: NAVY_SOFT, stroke: GOLD, strokeWidth: 0.9 })
-    page.lines.push({ x: 54, y: 789, text: 'CC', size: 15, font: 'F2', color: GOLD })
+    page.images.push({
+      x: 43,
+      y: 773,
+      width: 44,
+      height: 44,
+      name: 'ImLogo',
+      clipCircle: true,
+      borderColor: GOLD,
+      borderWidth: 1.4,
+    })
     page.lines.push({ x: 101, y: 802, text: 'CENTRO CULTURAL', size: 7.5, font: 'F2', color: '0.74 0.80 0.84' })
     page.lines.push({ x: 101, y: 783, text: 'CCNSA', size: 15, font: 'F2', color: WHITE })
     page.lines.push({ x: 101, y: 769, text: 'Comité de Finanzas', size: 7.5, font: 'F1', color: '0.82 0.86 0.89' })
@@ -124,7 +150,7 @@ function buildPages(input: EstadoCuentaPdfInput) {
   }
 
   const addPage = () => {
-    page = { lines: [], rules: [], rects: [] }
+    page = { lines: [], rules: [], rects: [], images: [] }
     pages.push(page)
     addBrandHeader()
     y = 718
@@ -201,12 +227,12 @@ function buildPages(input: EstadoCuentaPdfInput) {
       sectionTitle('Obligaciones (totales)')
     }
 
-    page.rects.push({ x: 44, y: y - 6, width: 507, height: 25, fill: SURFACE, stroke: BORDER, strokeWidth: 0.7 })
-    page.lines.push({ x: 51, y: y + 2, text: 'TOTAL OBLIGACIONES VIGENTES', size: 6.8, font: 'F2', color: NAVY })
-    page.lines.push({ x: 304, y: y + 2, text: truncate(money(totalImporte), 13), size: 7.1, font: 'F2', color: NAVY })
-    page.lines.push({ x: 375, y: y + 2, text: truncate(money(totalAplicado), 13), size: 7.1, font: 'F2', color: NAVY })
-    page.lines.push({ x: 446, y: y + 2, text: truncate(money(totalPendiente), 13), size: 7.1, font: 'F2', color: totalPendiente > 0 ? WARNING : SUCCESS })
-    y -= 29
+    page.rules.push({ x1: 44, x2: 551, y: y + 10, width: 1.15, color: GOLD })
+    page.lines.push({ x: 51, y: y - 1, text: 'Total obligaciones vigentes', size: 6.9, font: 'F2', color: MUTED })
+    page.lines.push({ x: 304, y: y - 1, text: truncate(money(totalImporte), 13), size: 7.4, font: 'F2', color: NAVY })
+    page.lines.push({ x: 375, y: y - 1, text: truncate(money(totalAplicado), 13), size: 7.4, font: 'F2', color: NAVY })
+    page.lines.push({ x: 446, y: y - 1, text: truncate(money(totalPendiente), 13), size: 7.4, font: 'F2', color: totalPendiente > 0 ? WARNING : SUCCESS })
+    y -= 24
 
     if (excluidas > 0) {
       page.lines.push({
@@ -231,12 +257,12 @@ function buildPages(input: EstadoCuentaPdfInput) {
       sectionTitle('Pagos (totales)')
     }
 
-    page.rects.push({ x: 44, y: y - 6, width: 507, height: 25, fill: SURFACE, stroke: BORDER, strokeWidth: 0.7 })
-    page.lines.push({ x: 51, y: y + 2, text: 'TOTAL PAGOS VIGENTES', size: 6.8, font: 'F2', color: NAVY })
-    page.lines.push({ x: 112, y: y + 2, text: truncate(money(totalImporte), 14), size: 7.1, font: 'F2', color: NAVY })
-    page.lines.push({ x: 196, y: y + 2, text: truncate(money(totalAplicado), 14), size: 7.1, font: 'F2', color: NAVY })
-    page.lines.push({ x: 280, y: y + 2, text: truncate(money(totalFavor), 14), size: 7.1, font: 'F2', color: totalFavor > 0 ? SUCCESS : NAVY })
-    y -= 35
+    page.rules.push({ x1: 44, x2: 551, y: y + 10, width: 1.15, color: GOLD })
+    page.lines.push({ x: 51, y: y - 1, text: 'Total pagos vigentes', size: 6.9, font: 'F2', color: MUTED })
+    page.lines.push({ x: 112, y: y - 1, text: truncate(money(totalImporte), 14), size: 7.4, font: 'F2', color: NAVY })
+    page.lines.push({ x: 196, y: y - 1, text: truncate(money(totalAplicado), 14), size: 7.4, font: 'F2', color: NAVY })
+    page.lines.push({ x: 280, y: y - 1, text: truncate(money(totalFavor), 14), size: 7.4, font: 'F2', color: totalFavor > 0 ? SUCCESS : NAVY })
+    y -= 30
 
     const boxBottom = y - 49
     page.rects.push({ x: 44, y: boxBottom, width: 507, height: 52, fill: SURFACE_ALT, stroke: BORDER, strokeWidth: 0.6 })
@@ -352,7 +378,25 @@ function buildPages(input: EstadoCuentaPdfInput) {
   return pages
 }
 
-function renderPage(page: PdfPage) {
+function circlePath(x: number, y: number, width: number, height: number) {
+  const k = 0.552284749831
+  const rx = width / 2
+  const ry = height / 2
+  const cx = x + rx
+  const cy = y + ry
+  const ox = rx * k
+  const oy = ry * k
+  return [
+    `${cx + rx} ${cy} m`,
+    `${cx + rx} ${cy + oy} ${cx + ox} ${cy + ry} ${cx} ${cy + ry} c`,
+    `${cx - ox} ${cy + ry} ${cx - rx} ${cy + oy} ${cx - rx} ${cy} c`,
+    `${cx - rx} ${cy - oy} ${cx - ox} ${cy - ry} ${cx} ${cy - ry} c`,
+    `${cx + ox} ${cy - ry} ${cx + rx} ${cy - oy} ${cx + rx} ${cy} c`,
+    'h',
+  ].join('\n')
+}
+
+function renderPage(page: PdfPage, hasLogo: boolean) {
   const commands: string[] = []
   for (const rect of page.rects) {
     if (rect.fill) commands.push(`${rect.fill} rg`)
@@ -360,6 +404,24 @@ function renderPage(page: PdfPage) {
     if (rect.strokeWidth) commands.push(`${rect.strokeWidth} w`)
     commands.push(`${rect.x} ${rect.y} ${rect.width} ${rect.height} re`)
     commands.push(rect.fill && rect.stroke ? 'B' : rect.fill ? 'f' : 'S')
+  }
+  if (hasLogo) {
+    for (const image of page.images) {
+      commands.push('q')
+      if (image.clipCircle) {
+        commands.push(circlePath(image.x, image.y, image.width, image.height))
+        commands.push('W n')
+      }
+      commands.push(`${image.width} 0 0 ${image.height} ${image.x} ${image.y} cm`)
+      commands.push(`/${image.name} Do`)
+      commands.push('Q')
+      if (image.borderColor) {
+        commands.push(`${image.borderColor} RG`)
+        commands.push(`${image.borderWidth ?? 1} w`)
+        commands.push(circlePath(image.x, image.y, image.width, image.height))
+        commands.push('S')
+      }
+    }
   }
   for (const rule of page.rules) {
     commands.push(`${rule.color ?? BORDER} RG`)
@@ -377,50 +439,134 @@ function renderPage(page: PdfPage) {
   return commands.join('\n')
 }
 
-function buildPdfBytes(pages: PdfPage[]) {
-  const objects: string[] = []
+const encoder = new TextEncoder()
+
+function concatBytes(parts: Uint8Array[]) {
+  const length = parts.reduce((sum, part) => sum + part.length, 0)
+  const output = new Uint8Array(length)
+  let offset = 0
+  for (const part of parts) {
+    output.set(part, offset)
+    offset += part.length
+  }
+  return output
+}
+
+function textBytes(value: string) {
+  return encoder.encode(value)
+}
+
+function buildPdfBytes(pages: PdfPage[], logo: PdfJpeg | null) {
+  const objects: Array<Uint8Array | undefined> = []
   const pageIds: number[] = []
   const pageContentIds: number[] = []
 
-  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>'
-  objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'
-  objects[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'
+  objects[1] = textBytes('<< /Type /Catalog /Pages 2 0 R >>')
+  objects[3] = textBytes('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>')
+  objects[4] = textBytes('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>')
 
   let nextId = 5
+  let imageId: number | undefined
+  if (logo) {
+    imageId = nextId++
+    const imageHeader = textBytes(
+      `<< /Type /XObject /Subtype /Image /Width ${logo.width} /Height ${logo.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logo.bytes.length} >>\nstream\n`,
+    )
+    objects[imageId] = concatBytes([imageHeader, logo.bytes, textBytes('\nendstream')])
+  }
+
   for (const page of pages) {
     const pageId = nextId++
     const contentId = nextId++
     pageIds.push(pageId)
     pageContentIds.push(contentId)
-    const content = renderPage(page)
-    objects[contentId] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
+    const content = textBytes(renderPage(page, Boolean(imageId)))
+    objects[contentId] = concatBytes([
+      textBytes(`<< /Length ${content.length} >>\nstream\n`),
+      content,
+      textBytes('\nendstream'),
+    ])
   }
 
-  objects[2] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`
+  objects[2] = textBytes(`<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`)
   pages.forEach((_page, index) => {
-    objects[pageIds[index]] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${pageContentIds[index]} 0 R >>`
+    const imageResource = imageId ? ` /XObject << /ImLogo ${imageId} 0 R >>` : ''
+    objects[pageIds[index]] = textBytes(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${imageResource} >> /Contents ${pageContentIds[index]} 0 R >>`,
+    )
   })
 
   const maxId = objects.length - 1
-  let pdf = '%PDF-1.4\n%CCNSA\n'
+  const parts: Uint8Array[] = []
   const offsets: number[] = new Array(maxId + 1).fill(0)
-  for (let id = 1; id <= maxId; id += 1) {
-    offsets[id] = pdf.length
-    pdf += `${id} 0 obj\n${objects[id]}\nendobj\n`
+  let byteOffset = 0
+
+  const push = (part: Uint8Array) => {
+    parts.push(part)
+    byteOffset += part.length
   }
-  const xrefOffset = pdf.length
-  pdf += `xref\n0 ${maxId + 1}\n`
-  pdf += '0000000000 65535 f \n'
+
+  push(textBytes('%PDF-1.4\n%CCNSA\n'))
   for (let id = 1; id <= maxId; id += 1) {
-    pdf += `${String(offsets[id]).padStart(10, '0')} 00000 n \n`
+    const object = objects[id]
+    if (!object) throw new Error(`PDF object ${id} is missing`)
+    offsets[id] = byteOffset
+    push(textBytes(`${id} 0 obj\n`))
+    push(object)
+    push(textBytes('\nendobj\n'))
   }
-  pdf += `trailer\n<< /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
-  return new TextEncoder().encode(pdf)
+
+  const xrefOffset = byteOffset
+  let xref = `xref\n0 ${maxId + 1}\n0000000000 65535 f \n`
+  for (let id = 1; id <= maxId; id += 1) {
+    xref += `${String(offsets[id]).padStart(10, '0')} 00000 n \n`
+  }
+  xref += `trailer\n<< /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+  push(textBytes(xref))
+
+  return concatBytes(parts)
 }
 
-export function downloadEstadoCuentaPdf(input: EstadoCuentaPdfInput) {
+let logoPromise: Promise<PdfJpeg | null> | null = null
+
+function loadPdfLogo() {
+  if (logoPromise) return logoPromise
+
+  logoPromise = new Promise<PdfJpeg | null>((resolve) => {
+    const image = new Image()
+    image.onload = () => {
+      try {
+        const size = 256
+        const canvas = document.createElement('canvas')
+        canvas.width = size
+        canvas.height = size
+        const context = canvas.getContext('2d')
+        if (!context) {
+          resolve(null)
+          return
+        }
+        context.drawImage(image, 0, 0, size, size)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+        const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
+        const binary = atob(base64)
+        const bytes = new Uint8Array(binary.length)
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+        resolve({ bytes, width: size, height: size })
+      } catch {
+        resolve(null)
+      }
+    }
+    image.onerror = () => resolve(null)
+    image.src = '/ccnsa-logo.webp'
+  })
+
+  return logoPromise
+}
+
+export async function downloadEstadoCuentaPdf(input: EstadoCuentaPdfInput) {
   const pages = buildPages(input)
-  const bytes = buildPdfBytes(pages)
+  const logo = await loadPdfLogo()
+  const bytes = buildPdfBytes(pages, logo)
   const blob = new Blob([bytes], { type: 'application/pdf' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')

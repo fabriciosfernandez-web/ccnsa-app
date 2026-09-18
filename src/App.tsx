@@ -9,6 +9,7 @@ import { AdminDashboard } from './pages/AdminDashboard'
 import { AdminFinanzasPage } from './pages/AdminFinanzasPage'
 import { AdminMigracionPage } from './pages/AdminMigracionPage'
 import { AdminMigracionPreflightPage } from './pages/AdminMigracionPreflightPage'
+import { AdminNotificationsDevPage } from './pages/AdminNotificationsDevPage'
 import { AdminReglasCobroPage } from './pages/AdminReglasCobroPage'
 import { AdminSociosPage } from './pages/AdminSociosPage'
 import { ForbiddenPage } from './pages/ForbiddenPage'
@@ -53,6 +54,7 @@ export default function App() {
               <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
                 <Route path="/admin/migracion" element={<AdminMigracionPage />} />
                 <Route path="/admin/migracion/preflight" element={<AdminMigracionPreflightPage />} />
+                <Route path="/admin/notificaciones" element={<AdminNotificationsDevPage />} />
               </Route>
             </Route>
           </Route>

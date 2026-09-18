@@ -37,6 +37,7 @@ function navItem(to: string, label: string, icon: NavIconName, end = false, badg
 }
 
 function routeMeta(pathname: string) {
+  if (pathname.startsWith('/admin/notificaciones')) return { section: 'Herramientas DEV', title: 'Notificaciones' }
   if (pathname.startsWith('/admin/migracion/preflight')) return { section: 'Herramientas DEV', title: 'Preflight de migración' }
   if (pathname.startsWith('/admin/migracion')) return { section: 'Herramientas DEV', title: 'Migración 2026' }
   if (pathname.startsWith('/admin/auditoria')) return { section: 'Control', title: 'Auditoría' }
@@ -125,6 +126,7 @@ export function AppShell() {
                   <span className="nav-group-label">Herramientas DEV</span>
                   {navItem('/admin/migracion', 'Migración 2026', 'migration', true)}
                   {navItem('/admin/migracion/preflight', 'Preflight', 'check')}
+                  {navItem('/admin/notificaciones', 'Notificaciones', 'bell')}
                 </div>
               )}
             </>

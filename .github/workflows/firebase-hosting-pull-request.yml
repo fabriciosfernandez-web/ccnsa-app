@@ -43,7 +43,7 @@ jobs:
 
       - name: Show Firebase deployer account
         if: steps.auth_dev_rules.outcome == 'success'
-        run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
+        run: jq -r '.client_email // .service_account_impersonation_url // "unknown"' "$GOOGLE_APPLICATION_CREDENTIALS"
 
       - name: Deploy Firestore rules to DEV
         if: steps.auth_dev_rules.outcome == 'success'

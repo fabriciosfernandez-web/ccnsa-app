@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../auth/AuthProvider'
+import { useAuth, userProfileContextLabel } from '../auth/AuthProvider'
 import { AdminPageHeader } from '../components/AdminPageHeader'
 import { loadFinanzas, type FinanzasSnapshot } from '../data/finanzas'
-import { listSocios, type Socio } from '../data/socios'
+import { listSocios, loadPortfolioSummary, type PortfolioSummary, type Socio } from '../data/socios'
 
 const currentPeriod = new Date().toISOString().slice(0, 7)
 const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY')}`
@@ -11,6 +11,7 @@ const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY'
 interface DashboardData {
   socios: Socio[]
   finanzas: FinanzasSnapshot
+  cartera: PortfolioSummary
 }
 
 export function AdminDashboard() {
@@ -20,9 +21,9 @@ export function AdminDashboard() {
 
   useEffect(() => {
     let active = true
-    void Promise.all([listSocios(), loadFinanzas(currentPeriod)])
-      .then(([socios, finanzas]) => {
-        if (active) setData({ socios, finanzas })
+    void Promise.all([listSocios(), loadFinanzas(currentPeriod), loadPortfolioSummary()])
+      .then(([socios, finanzas, cartera]) => {
+        if (active) setData({ socios, finanzas, cartera })
       })
       .catch((caught) => {
         if (active) setError(caught instanceof Error ? caught.message : 'No fue posible cargar el resumen institucional.')
@@ -32,17 +33,19 @@ export function AdminDashboard() {
 
   const sociosActivos = data?.socios.filter((item) => item.estado === 'ACTIVO').length ?? 0
   const finanzas = data?.finanzas.totales
+  const cartera = data?.cartera
+  const profileContext = userProfileContextLabel(profile)
 
   return (
     <section className="page-stack legacy-page-stack enterprise-dashboard">
       <AdminPageHeader
         eyebrow="Gestión institucional"
         title={profile?.role === 'CONSULTA' ? 'Panel de consulta' : 'Panel de gestión'}
-        description="Vista ejecutiva de socios, cobranza y finanzas. Los indicadores reflejan exclusivamente los datos disponibles en este entorno."
+        description="Resumen ejecutivo de socios, cobranza, cartera y resultado financiero para el seguimiento institucional."
         meta={(
           <>
             <span className="status-badge neutral">Periodo · {currentPeriod}</span>
-            <span className="status-badge neutral">Rol · {profile?.role}</span>
+            <span className="status-badge neutral">{profileContext}</span>
           </>
         )}
         actions={<Link className="button primary" to="/admin/finanzas">Abrir Finanzas</Link>}
@@ -62,9 +65,9 @@ export function AdminDashboard() {
           <small>Pagos de socios registrados en {currentPeriod}.</small>
         </article>
         <article className="metric-card legacy-metric-card">
-          <span>Egresos del mes</span>
-          <strong>{finanzas ? money(finanzas.egresosTotales) : '—'}</strong>
-          <small>Salidas financieras vigentes del periodo.</small>
+          <span>Cuentas por cobrar</span>
+          <strong>{cartera ? money(cartera.saldoPendiente) : '—'}</strong>
+          <small>{cartera ? `${cartera.sociosConSaldoPendiente} socio(s) con saldo pendiente.` : 'Calculando cartera…'}</small>
         </article>
         <article className="metric-card legacy-metric-card">
           <span>Resultado del mes</span>
@@ -117,16 +120,24 @@ export function AdminDashboard() {
             <div className="panel-heading-row"><div><p className="legacy-kicker">Control</p><h3>Estado del sistema</h3></div></div>
             <div className="dashboard-status-list">
               <div className="dashboard-status-item"><span>Finanzas</span><span className="status-badge success">Operativo</span></div>
-              <div className="dashboard-status-item"><span>Actividades</span><span className="status-badge success">En prueba DEV</span></div>
+              <div className="dashboard-status-item"><span>Actividades</span><span className="status-badge success">Validado</span></div>
+              <div className="dashboard-status-item"><span>Portal del socio</span><span className="status-badge success">Validado</span></div>
+              <div className="dashboard-status-item"><span>Web Push</span><span className="status-badge success">Validado Android</span></div>
               <div className="dashboard-status-item"><span>Auditoría central</span><span className="status-badge success">Activa</span></div>
               <div className="dashboard-status-item"><span>Migración productiva</span><span className="status-badge neutral">Pendiente</span></div>
             </div>
           </article>
 
           <article className="panel legacy-panel">
-            <p className="legacy-kicker">Arquitectura contable</p>
-            <h3>Una sola fuente por movimiento</h3>
-            <p>Los ingresos y egresos creados desde Actividades generan su asiento financiero canónico y quedan vinculados a la subcontabilidad, evitando cargas duplicadas.</p>
+            <p className="legacy-kicker">Atención requerida</p>
+            <h3>Seguimiento de cartera</h3>
+            <div className="dashboard-status-list">
+              <div className="dashboard-status-item"><span>Socios con saldo pendiente</span><strong>{cartera ? cartera.sociosConSaldoPendiente : '—'}</strong></div>
+              <div className="dashboard-status-item"><span>Obligaciones pendientes</span><strong>{cartera ? cartera.obligacionesPendientes : '—'}</strong></div>
+              <div className="dashboard-status-item"><span>Obligaciones vencidas</span><span className={`status-badge ${cartera?.obligacionesVencidas ? 'danger' : 'success'}`}>{cartera ? cartera.obligacionesVencidas : '—'}</span></div>
+              <div className="dashboard-status-item"><span>Importe vencido</span><strong>{cartera ? money(cartera.importeVencido) : '—'}</strong></div>
+              <div className="dashboard-status-item"><span>Saldo a favor global</span><strong>{cartera ? money(cartera.saldoFavor) : '—'}</strong></div>
+            </div>
           </article>
         </div>
       </div>

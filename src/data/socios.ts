@@ -91,6 +91,16 @@ export interface RegistroConAplicacionResult {
   cantidadAplicaciones: number
 }
 
+export interface PortfolioSummary {
+  saldoPendiente: number
+  saldoFavor: number
+  saldoNeto: number
+  sociosConSaldoPendiente: number
+  obligacionesPendientes: number
+  obligacionesVencidas: number
+  importeVencido: number
+}
+
 interface InAppNotificationPreferences {
   inApp: boolean
   paymentConfirmations: boolean
@@ -297,6 +307,61 @@ export async function loadEstadoCuenta(socioId: string): Promise<EstadoCuenta> {
     listAplicacionesPago(socioId),
   ])
   return buildEstadoCuenta(obligaciones, pagos, aplicaciones)
+}
+
+export async function loadPortfolioSummary(today = new Date()): Promise<PortfolioSummary> {
+  const database = requireDb()
+  const [obligacionesSnapshot, pagosSnapshot, aplicacionesSnapshot] = await Promise.all([
+    getDocs(collection(database, 'obligaciones')),
+    getDocs(collection(database, 'pagos')),
+    getDocs(collection(database, 'aplicaciones_pago')),
+  ])
+
+  const obligaciones = obligacionesSnapshot.docs.map(mapObligacion)
+  const pagos = pagosSnapshot.docs.map(mapPago)
+  const aplicaciones = aplicacionesSnapshot.docs.map(mapAplicacion)
+  const socioIds = new Set<string>([
+    ...obligaciones.map((item) => item.socioId),
+    ...pagos.map((item) => item.socioId),
+  ].filter(Boolean))
+
+  let saldoPendiente = 0
+  let saldoFavor = 0
+  let sociosConSaldoPendiente = 0
+  let obligacionesPendientes = 0
+  let obligacionesVencidas = 0
+  let importeVencido = 0
+  const todayKey = today.toISOString().slice(0, 10)
+
+  for (const socioId of socioIds) {
+    const account = buildEstadoCuenta(
+      obligaciones.filter((item) => item.socioId === socioId),
+      pagos.filter((item) => item.socioId === socioId),
+      aplicaciones.filter((item) => item.socioId === socioId),
+    )
+    saldoPendiente += account.saldoPendiente
+    saldoFavor += account.saldoFavor
+    if (account.saldoPendiente > 0) sociosConSaldoPendiente += 1
+
+    for (const obligacion of account.obligaciones) {
+      if (obligacion.saldoPendiente <= 0) continue
+      obligacionesPendientes += 1
+      if (obligacion.fechaVencimiento && obligacion.fechaVencimiento < todayKey) {
+        obligacionesVencidas += 1
+        importeVencido += obligacion.saldoPendiente
+      }
+    }
+  }
+
+  return {
+    saldoPendiente,
+    saldoFavor,
+    saldoNeto: saldoPendiente - saldoFavor,
+    sociosConSaldoPendiente,
+    obligacionesPendientes,
+    obligacionesVencidas,
+    importeVencido,
+  }
 }
 
 export async function createObligacion(

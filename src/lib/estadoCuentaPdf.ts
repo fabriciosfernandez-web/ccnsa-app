@@ -61,7 +61,6 @@ export interface EstadoCuentaPdfInput {
 }
 
 const NAVY = '0.055 0.145 0.205'
-const NAVY_SOFT = '0.105 0.245 0.325'
 const GOLD = '0.765 0.640 0.355'
 const TEXT = '0.075 0.125 0.165'
 const MUTED = '0.365 0.430 0.475'

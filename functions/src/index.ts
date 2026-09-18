@@ -45,6 +45,7 @@ export const deliverNotificationPush = onDocumentCreated(
     memory: '256MiB',
     cpu: 'gcf_gen1',
     timeoutSeconds: 30,
+    retry: false,
   },
   async (event) => {
     const snapshot = event.data

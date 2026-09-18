@@ -163,3 +163,55 @@ export const firestoreNotificationService: NotificationService = {
     }, { merge: true })
   },
 }
+
+
+export interface GeneralNoticeInput {
+  socioId: string
+  title: string
+  message: string
+  actionUrl?: '/socio' | '/socio/notificaciones'
+}
+
+export async function createGeneralNotice(input: GeneralNoticeInput, actorUid: string) {
+  const database = requireDb()
+  const preferencesSnapshot = await getDoc(doc(database, 'notification_preferences', input.socioId))
+  const preferences = mapPreferences(
+    input.socioId,
+    preferencesSnapshot.exists() ? preferencesSnapshot.data() : DEFAULT_PREFERENCES,
+  )
+
+  if (!preferences.inApp) {
+    return { created: false as const, reason: 'IN_APP_DISABLED' as const }
+  }
+
+  const notificationRef = doc(collection(database, 'notifications'))
+  const auditRef = doc(collection(database, 'audit_log'))
+  const batch = writeBatch(database)
+  const actionUrl = input.actionUrl === '/socio/notificaciones' ? '/socio/notificaciones' : '/socio'
+
+  batch.set(notificationRef, {
+    socioId: input.socioId,
+    kind: 'GENERAL_NOTICE',
+    title: input.title.trim(),
+    message: input.message.trim(),
+    status: 'UNREAD',
+    createdAt: serverTimestamp(),
+    actionUrl,
+    sourceType: 'manual_notice',
+    sourceId: notificationRef.id,
+    deduplicationKey: `general:${notificationRef.id}`,
+    createdByUid: actorUid,
+  })
+
+  batch.set(auditRef, {
+    actorUid,
+    action: 'GENERAL_NOTICE_CREATED',
+    entity: 'notifications',
+    entityId: notificationRef.id,
+    socioId: input.socioId,
+    createdAt: serverTimestamp(),
+  })
+
+  await batch.commit()
+  return { created: true as const, id: notificationRef.id }
+}

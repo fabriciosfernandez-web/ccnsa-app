@@ -43,6 +43,7 @@ export const deliverNotificationPush = onDocumentCreated(
     minInstances: 0,
     maxInstances: 1,
     memory: '256MiB',
+    cpu: 'gcf_gen1',
     timeoutSeconds: 30,
   },
   async (event) => {

@@ -16,6 +16,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, firebaseConfigured } from '../lib/firebase'
+import { disableCurrentPushDevice, hasStoredPushDevice } from '../notifications/pushSubscriptionService'
 
 export type UserRole = 'SOCIO' | 'TESORERIA' | 'ADMIN' | 'CONSULTA'
 
@@ -144,7 +145,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    if (auth) await signOut(auth)
+    if (!auth) return
+    if (profile?.role === 'SOCIO' && hasStoredPushDevice()) {
+      try {
+        await disableCurrentPushDevice()
+      } catch {
+        // Logout must still work even if the device token cleanup cannot reach Firestore.
+      }
+    }
+    await signOut(auth)
   }
 
   const value = useMemo<AuthContextValue>(

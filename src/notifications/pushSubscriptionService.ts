@@ -73,15 +73,13 @@ export async function registerPushDevice(socioId: string, uid: string): Promise<
   return { subscriptionId, token }
 }
 
-export async function disableCurrentPushDevice(socioId: string, uid: string) {
+export async function disableCurrentPushDevice() {
   const { database } = requireFirebase()
   const subscriptionId = window.localStorage.getItem(DEVICE_SUBSCRIPTION_KEY)
   if (!subscriptionId) return false
 
   await deleteDoc(doc(database, 'push_subscriptions', subscriptionId))
   window.localStorage.removeItem(DEVICE_SUBSCRIPTION_KEY)
-  void socioId
-  void uid
   return true
 }
 

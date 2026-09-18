@@ -3,6 +3,11 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { PushDevPanel } from '../components/PushDevPanel'
 import {
+  disableCurrentPushDevice,
+  hasStoredPushDevice,
+  registerPushDevice,
+} from '../notifications/pushSubscriptionService'
+import {
   firestoreNotificationService,
   markAllNotificationsAsRead,
   subscribeNotificationsForSocio,
@@ -29,13 +34,15 @@ function errorMessage(error: unknown) {
 }
 
 export function NotificationsPage() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const socioId = profile?.socioId
   const [items, setItems] = useState<AccountNotification[]>([])
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null)
   const [loading, setLoading] = useState(true)
   const [savingPreference, setSavingPreference] = useState<string | null>(null)
   const [markingAll, setMarkingAll] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [devicePushEnabled, setDevicePushEnabled] = useState(hasStoredPushDevice)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -109,6 +116,40 @@ export function NotificationsPage() {
       setError(errorMessage(caught))
     } finally {
       setSavingPreference(null)
+    }
+  }
+
+  async function enablePushForDevice() {
+    if (!preferences || !socioId || !user) return
+    setPushBusy(true)
+    setError('')
+    try {
+      await registerPushDevice(socioId, user.uid)
+      const next = { ...preferences, push: true }
+      await firestoreNotificationService.savePreferences(next)
+      setPreferences(next)
+      setDevicePushEnabled(true)
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
+  async function disablePushForDevice() {
+    if (!preferences || !socioId || !user) return
+    setPushBusy(true)
+    setError('')
+    try {
+      const next = { ...preferences, push: false }
+      await firestoreNotificationService.savePreferences(next)
+      await disableCurrentPushDevice(socioId, user.uid)
+      setPreferences(next)
+      setDevicePushEnabled(false)
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setPushBusy(false)
     }
   }
 
@@ -204,7 +245,21 @@ export function NotificationsPage() {
           </label>
 
           <div className="cuotas-info-box">
-            <strong>Sin Blaze.</strong> La prueba push de DEV utiliza FCM y el compositor de Firebase Console, por lo que no requiere Cloud Functions. Correo y automatización de push no se simulan mientras no exista un backend gratuito adecuado.
+            <strong>Notificaciones push del dispositivo.</strong>{' '}
+            {preferences.push && devicePushEnabled
+              ? 'Este navegador está registrado para recibir avisos aunque CCNSA no esté abierta.'
+              : 'Podés registrar este dispositivo para recibir avisos del sistema.'}
+            <div className="socio-actions" style={{ marginTop: 10 }}>
+              {preferences.push && devicePushEnabled ? (
+                <button className="button secondary inline-button" type="button" onClick={() => void disablePushForDevice()} disabled={pushBusy}>
+                  {pushBusy ? 'Actualizando…' : 'Desactivar push'}
+                </button>
+              ) : (
+                <button className="button primary inline-button" type="button" onClick={() => void enablePushForDevice()} disabled={pushBusy}>
+                  {pushBusy ? 'Activando…' : 'Activar push en este dispositivo'}
+                </button>
+              )}
+            </div>
           </div>
         </section>
       )}

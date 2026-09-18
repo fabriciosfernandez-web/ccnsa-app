@@ -254,6 +254,29 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /push_subscriptions/{subscriptionId} {
+      allow read: if isSocio()
+        && resource.data.socioId == currentSocioId()
+        && resource.data.uid == request.auth.uid;
+
+      allow create: if isSocio()
+        && request.resource.data.socioId == currentSocioId()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.token is string
+        && request.resource.data.token.size() > 20
+        && request.resource.data.enabled == true;
+
+      allow update: if isSocio()
+        && resource.data.socioId == currentSocioId()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.socioId == resource.data.socioId
+        && request.resource.data.uid == resource.data.uid;
+
+      allow delete: if isSocio()
+        && resource.data.socioId == currentSocioId()
+        && resource.data.uid == request.auth.uid;
+    }
+
     match /notification_deliveries/{deliveryId} {
       allow read: if isStaff();
       allow write: if false;

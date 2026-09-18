@@ -40,7 +40,10 @@ async function writeDelivery(
 export const deliverNotificationPush = onDocumentCreated(
   {
     document: 'notifications/{notificationId}',
-    maxInstances: 3,
+    minInstances: 0,
+    maxInstances: 1,
+    memory: '256MiB',
+    timeoutSeconds: 30,
   },
   async (event) => {
     const snapshot = event.data

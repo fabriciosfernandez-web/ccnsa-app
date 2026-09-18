@@ -41,6 +41,10 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCNSA_WEB_DEV }}
 
+      - name: Show Firebase deployer account
+        if: steps.auth_dev_rules.outcome == 'success'
+        run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
+
       - name: Deploy Firestore rules to DEV
         if: steps.auth_dev_rules.outcome == 'success'
         continue-on-error: true
@@ -52,4 +56,5 @@ jobs:
 
       - name: Deploy push Function to DEV
         if: steps.auth_dev_rules.outcome == 'success'
+        continue-on-error: true
         run: npx --yes firebase-tools@latest deploy --only functions:deliverNotificationPush --project ccnsa-web-dev --non-interactive

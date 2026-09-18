@@ -47,13 +47,14 @@ export function LoginPage() {
       <section className="legacy-login-card">
         <div className="legacy-accent" />
 
-        <div className="legacy-brand-block">
-          <div className="legacy-logo" aria-hidden="true">CC</div>
-          <div>
-            <p className="legacy-kicker">Centro Cultural</p>
-            <h1>CCNSA</h1>
-            <p className="muted">Consulta de cuotas y gestión institucional</p>
-          </div>
+        <div className="login-brand">
+          <img
+            className="login-official-logo"
+            src="/ccnsa-logo.webp"
+            alt="Escudo del Centro Cultural Nuestra Señora de la Asunción"
+          />
+          <h1>CCNSA</h1>
+          <p>Centro Cultural Nuestra Señora de la Asunción</p>
         </div>
 
         {!firebaseConfigured && (

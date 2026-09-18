@@ -57,6 +57,7 @@ export function AppShell() {
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const meta = routeMeta(location.pathname)
   const configuredLogo = String(import.meta.env.VITE_BRAND_LOGO_URL || '').trim()
+  const brandLogo = configuredLogo || '/ccnsa-logo.webp'
   const profileContext = userProfileContextLabel(profile)
 
   useEffect(() => {
@@ -76,8 +77,8 @@ export function AppShell() {
     <div className="app-shell legacy-app-shell">
       <aside className="sidebar legacy-sidebar">
         <div className="enterprise-brand">
-          <div className="enterprise-brand-mark" aria-hidden={!configuredLogo}>
-            {configuredLogo ? <img src={configuredLogo} alt="CCNSA" /> : 'CC'}
+          <div className="enterprise-brand-mark">
+            <img src={brandLogo} alt="Escudo de CCNSA" />
           </div>
           <div className="enterprise-brand-copy">
             <span>Centro Cultural</span>

@@ -158,27 +158,28 @@ strong {
 }
 
 .enterprise-brand-mark {
-  width: 42px;
-  height: 42px;
+  width: 50px;
+  height: 50px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 50%;
   color: var(--brand-accent);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025));
-  border: 1px solid rgba(195, 163, 90, 0.46);
+  background: rgba(255, 255, 255, 0.025);
+  border: 2px solid var(--brand-accent);
   font-family: Georgia, 'Times New Roman', serif;
   font-weight: 800;
   letter-spacing: 0.05em;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+  box-shadow:
+    0 5px 16px rgba(0, 0, 0, 0.24),
+    0 0 0 3px rgba(195, 163, 90, 0.08);
 }
 
 .enterprise-brand-mark img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  padding: 4px;
+  object-fit: cover;
 }
 
 .enterprise-brand-copy span {

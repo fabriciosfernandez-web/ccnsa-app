@@ -37,6 +37,7 @@ function navItem(to: string, label: string, icon: NavIconName, end = false, badg
 }
 
 function routeMeta(pathname: string) {
+  if (pathname.startsWith('/admin/notificaciones')) return { section: 'Herramientas DEV', title: 'Notificaciones' }
   if (pathname.startsWith('/admin/migracion/preflight')) return { section: 'Herramientas DEV', title: 'Preflight de migración' }
   if (pathname.startsWith('/admin/migracion')) return { section: 'Herramientas DEV', title: 'Migración 2026' }
   if (pathname.startsWith('/admin/auditoria')) return { section: 'Control', title: 'Auditoría' }
@@ -46,7 +47,9 @@ function routeMeta(pathname: string) {
   if (pathname.startsWith('/admin/finanzas')) return { section: 'Gestión', title: 'Finanzas' }
   if (pathname.startsWith('/admin/socios')) return { section: 'Gestión', title: 'Socios y cuotas' }
   if (pathname === '/admin') return { section: 'Gestión institucional', title: 'Panel de gestión' }
+  if (pathname.startsWith('/socio/inicio')) return { section: 'Portal del socio', title: 'Inicio' }
   if (pathname.startsWith('/socio/notificaciones')) return { section: 'Portal del socio', title: 'Notificaciones' }
+  if (pathname.startsWith('/socio/perfil')) return { section: 'Portal del socio', title: 'Mi perfil' }
   return { section: 'Portal del socio', title: 'Mi estado de cuenta' }
 }
 
@@ -57,6 +60,7 @@ export function AppShell() {
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const meta = routeMeta(location.pathname)
   const configuredLogo = String(import.meta.env.VITE_BRAND_LOGO_URL || '').trim()
+  const brandLogo = configuredLogo || '/ccnsa-logo.webp'
   const profileContext = userProfileContextLabel(profile)
 
   useEffect(() => {
@@ -76,8 +80,8 @@ export function AppShell() {
     <div className="app-shell legacy-app-shell">
       <aside className="sidebar legacy-sidebar">
         <div className="enterprise-brand">
-          <div className="enterprise-brand-mark" aria-hidden={!configuredLogo}>
-            {configuredLogo ? <img src={configuredLogo} alt="CCNSA" /> : 'CC'}
+          <div className="enterprise-brand-mark">
+            <img src={brandLogo} alt="Escudo de CCNSA" />
           </div>
           <div className="enterprise-brand-copy">
             <span>Centro Cultural</span>
@@ -95,8 +99,10 @@ export function AppShell() {
           {profile?.role === 'SOCIO' ? (
             <div className="nav-group">
               <span className="nav-group-label">Portal del socio</span>
+              {navItem('/socio/inicio', 'Inicio', 'dashboard', true)}
               {navItem('/socio', 'Mi estado de cuenta', 'account', true)}
               {navItem('/socio/notificaciones', 'Notificaciones', 'bell', false, unreadNotifications)}
+              {navItem('/socio/perfil', 'Mi perfil', 'account')}
             </div>
           ) : (
             <>
@@ -124,6 +130,7 @@ export function AppShell() {
                   <span className="nav-group-label">Herramientas DEV</span>
                   {navItem('/admin/migracion', 'Migración 2026', 'migration', true)}
                   {navItem('/admin/migracion/preflight', 'Preflight', 'check')}
+                  {navItem('/admin/notificaciones', 'Notificaciones', 'bell')}
                 </div>
               )}
             </>

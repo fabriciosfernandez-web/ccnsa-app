@@ -33,3 +33,28 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCNSA_WEB_DEV }}
           projectId: ccnsa-web-dev
           expires: 7d
+
+      - name: Authenticate for Firebase DEV rules
+        id: auth_dev_rules
+        continue-on-error: true
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCNSA_WEB_DEV }}
+
+      - name: Show Firebase deployer account
+        if: steps.auth_dev_rules.outcome == 'success'
+        run: jq -r '.client_email // .service_account_impersonation_url // "unknown"' "$GOOGLE_APPLICATION_CREDENTIALS"
+
+      - name: Deploy Firestore rules to DEV
+        if: steps.auth_dev_rules.outcome == 'success'
+        continue-on-error: true
+        run: npx --yes firebase-tools@latest deploy --only firestore:rules --project ccnsa-web-dev --non-interactive
+
+      - name: Install Functions dependencies
+        if: steps.auth_dev_rules.outcome == 'success'
+        run: npm --prefix functions install
+
+      - name: Deploy push Function to DEV
+        if: steps.auth_dev_rules.outcome == 'success'
+        continue-on-error: true
+        run: npx --yes firebase-tools@latest deploy --only functions:deliverNotificationPush --project ccnsa-web-dev --non-interactive

@@ -1,3 +1,41 @@
+.legacy-login-card {
+  width: min(100%, 470px);
+}
+
+.login-brand {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 28px 32px 16px;
+  text-align: center;
+}
+
+.login-brand h1 {
+  margin: 7px 0 0;
+  color: var(--text-primary, var(--ccnsa-blue));
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
+  letter-spacing: 0.055em;
+}
+
+.login-brand p {
+  margin: 0;
+  color: var(--text-secondary, #6f7c89);
+  font-size: 0.93rem;
+  line-height: 1.45;
+}
+
+.login-official-logo {
+  width: 92px;
+  height: 92px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid var(--ccnsa-gold);
+  box-shadow:
+    0 7px 20px rgba(15, 31, 47, 0.16),
+    0 0 0 4px rgba(197, 164, 90, 0.08);
+}
+
 .login-actions {
   display: grid;
   gap: 16px;
@@ -54,6 +92,23 @@
 }
 
 @media (max-width: 560px) {
+  .login-brand {
+    padding: 24px 24px 14px;
+  }
+
+  .login-brand h1 {
+    font-size: 1.8rem;
+  }
+
+  .login-brand p {
+    font-size: 0.88rem;
+  }
+
+  .login-official-logo {
+    width: 84px;
+    height: 84px;
+  }
+
   .login-actions {
     margin-left: 24px;
     margin-right: 24px;

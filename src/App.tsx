@@ -16,6 +16,7 @@ import { ForbiddenPage } from './pages/ForbiddenPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { SocioDashboard } from './pages/SocioDashboard'
+import { SocioProfilePage } from './pages/SocioProfilePage'
 
 function HomeRedirect() {
   const { user, profile, loading } = useAuth()
@@ -39,6 +40,7 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route path="/socio" element={<SocioDashboard />} />
               <Route path="/socio/notificaciones" element={<NotificationsPage />} />
+              <Route path="/socio/perfil" element={<SocioProfilePage />} />
             </Route>
           </Route>
 

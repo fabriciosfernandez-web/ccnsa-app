@@ -48,6 +48,7 @@ function routeMeta(pathname: string) {
   if (pathname.startsWith('/admin/socios')) return { section: 'Gestión', title: 'Socios y cuotas' }
   if (pathname === '/admin') return { section: 'Gestión institucional', title: 'Panel de gestión' }
   if (pathname.startsWith('/socio/notificaciones')) return { section: 'Portal del socio', title: 'Notificaciones' }
+  if (pathname.startsWith('/socio/perfil')) return { section: 'Portal del socio', title: 'Mi perfil' }
   return { section: 'Portal del socio', title: 'Mi estado de cuenta' }
 }
 
@@ -99,6 +100,7 @@ export function AppShell() {
               <span className="nav-group-label">Portal del socio</span>
               {navItem('/socio', 'Mi estado de cuenta', 'account', true)}
               {navItem('/socio/notificaciones', 'Notificaciones', 'bell', false, unreadNotifications)}
+              {navItem('/socio/perfil', 'Mi perfil', 'account')}
             </div>
           ) : (
             <>

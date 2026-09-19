@@ -256,6 +256,23 @@ export async function listSocios(): Promise<Socio[]> {
   return snapshot.docs.map(mapSocio).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 }
 
+export async function loadSocio(socioId: string): Promise<Socio | null> {
+  const database = requireDb()
+  const snapshot = await getDoc(doc(database, 'socios', socioId))
+  if (!snapshot.exists()) return null
+  const data = snapshot.data()
+  return {
+    id: snapshot.id,
+    nombre: String(data.nombre ?? ''),
+    email: data.email ? String(data.email) : undefined,
+    categoria: data.categoria === 'CASADO' ? 'CASADO' : 'SOLTERO',
+    estado: data.estado === 'INACTIVO' ? 'INACTIVO' : 'ACTIVO',
+    fechaIngreso: data.fechaIngreso ? String(data.fechaIngreso) : undefined,
+    createdAt: data.createdAt as Timestamp | undefined,
+    updatedAt: data.updatedAt as Timestamp | undefined,
+  }
+}
+
 export async function createSocio(
   input: Omit<Socio, 'id' | 'createdAt' | 'updatedAt'>,
   actorUid: string,

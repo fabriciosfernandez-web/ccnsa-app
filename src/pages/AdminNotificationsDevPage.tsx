@@ -4,7 +4,11 @@ import { useAuth } from '../auth/AuthProvider'
 import { PushDevPanel } from '../components/PushDevPanel'
 import { listSocios, type Socio } from '../data/socios'
 import { appEnvironment } from '../lib/firebase'
-import { createGeneralNotice } from '../notifications/firestoreNotificationService'
+import {
+  createGeneralNotice,
+  listRecentPushDeliveries,
+} from '../notifications/firestoreNotificationService'
+import type { NotificationDelivery } from '../notifications/types'
 import './admin-notifications.css'
 
 export function AdminNotificationsDevPage() {
@@ -12,6 +16,8 @@ export function AdminNotificationsDevPage() {
   const [socios, setSocios] = useState<Socio[]>([])
   const [selectedSocioId, setSelectedSocioId] = useState('')
   const [sending, setSending] = useState(false)
+  const [deliveries, setDeliveries] = useState<NotificationDelivery[]>([])
+  const [loadingDeliveries, setLoadingDeliveries] = useState(true)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -29,6 +35,21 @@ export function AdminNotificationsDevPage() {
         setError(caught instanceof Error ? caught.message : 'No fue posible cargar los socios.')
       })
     return () => { active = false }
+  }, [])
+
+  async function refreshDeliveries() {
+    setLoadingDeliveries(true)
+    try {
+      setDeliveries(await listRecentPushDeliveries())
+    } catch {
+      setDeliveries([])
+    } finally {
+      setLoadingDeliveries(false)
+    }
+  }
+
+  useEffect(() => {
+    void refreshDeliveries()
   }, [])
 
   if (appEnvironment !== 'dev') return <Navigate to="/admin" replace />
@@ -64,7 +85,8 @@ export function AdminNotificationsDevPage() {
       }
 
       const socio = socios.find((item) => item.id === selectedSocioId)
-      setMessage(`Aviso enviado a ${socio?.nombre || 'el socio'}. Ya debería aparecer en su centro de notificaciones.`)
+      setMessage(`Aviso enviado a ${socio?.nombre || 'el socio'}. Aparecerá en su centro de notificaciones y, si tiene push activo, el backend intentará entregarlo también al dispositivo.`)
+      window.setTimeout(() => { void refreshDeliveries() }, 1500)
       form.reset()
       setSelectedSocioId(selectedSocioId)
     } catch (caught) {
@@ -96,7 +118,7 @@ export function AdminNotificationsDevPage() {
             <p className="legacy-kicker">Prueba funcional</p>
             <h3>Enviar aviso al portal de un socio</h3>
             <p className="muted">
-              Crea una notificación GENERAL_NOTICE real en Firestore y respeta la preferencia in-app del socio.
+              Crea una notificación GENERAL_NOTICE real en Firestore. Si el socio tiene un dispositivo push registrado, la misma notificación queda lista para entrega por FCM.
             </p>
           </div>
           <span className="status-badge success">In-app activo</span>
@@ -160,6 +182,54 @@ export function AdminNotificationsDevPage() {
             </small>
           </div>
         </form>
+      </section>
+
+      <section className="panel legacy-panel admin-delivery-panel">
+        <div className="admin-notice-heading">
+          <div>
+            <p className="legacy-kicker">Trazabilidad técnica</p>
+            <h3>Últimas entregas push</h3>
+            <p className="muted">
+              Permite verificar si el backend entregó, omitió o falló al procesar una notificación.
+            </p>
+          </div>
+          <button className="button secondary inline-button" type="button" onClick={() => void refreshDeliveries()} disabled={loadingDeliveries}>
+            {loadingDeliveries ? 'Actualizando…' : 'Actualizar'}
+          </button>
+        </div>
+
+        {loadingDeliveries ? (
+          <div className="screen-message">Cargando entregas…</div>
+        ) : deliveries.length === 0 ? (
+          <p className="muted">Todavía no hay entregas push registradas.</p>
+        ) : (
+          <div className="legacy-table-wrap">
+            <table className="legacy-table">
+              <thead>
+                <tr>
+                  <th>Estado</th>
+                  <th>Socio</th>
+                  <th>Enviados</th>
+                  <th>Fallidos</th>
+                  <th>Motivo</th>
+                  <th>Actualizado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deliveries.map((delivery) => (
+                  <tr key={delivery.id || delivery.notificationId}>
+                    <td><span className={`status-badge ${delivery.status === 'SENT' ? 'success' : delivery.status === 'FAILED' ? 'danger' : 'neutral'}`}>{delivery.status}</span></td>
+                    <td>{delivery.socioId || '—'}</td>
+                    <td>{delivery.successCount ?? '—'}</td>
+                    <td>{delivery.failureCount ?? '—'}</td>
+                    <td>{delivery.reason || '—'}</td>
+                    <td>{delivery.updatedAt ? new Intl.DateTimeFormat('es-PY', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(delivery.updatedAt)) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <PushDevPanel />

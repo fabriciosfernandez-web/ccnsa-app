@@ -81,3 +81,9 @@
     grid-column: auto;
   }
 }
+
+
+.admin-delivery-panel {
+  display: grid;
+  gap: 16px;
+}

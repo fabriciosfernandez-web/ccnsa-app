@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
-import { PushDevPanel } from '../components/PushDevPanel'
 import {
   disableCurrentPushDevice,
   hasStoredPushDevice,
@@ -31,6 +30,10 @@ function kindLabel(kind: NotificationKind) {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'No fue posible completar la operación.'
+}
+
+function actionLabel(actionUrl?: string) {
+  return actionUrl === '/socio/notificaciones' ? 'Abrir notificaciones' : 'Ver estado de cuenta'
 }
 
 export function NotificationsPage() {
@@ -209,13 +212,11 @@ export function NotificationsPage() {
                   Marcar como leída
                 </button>
               )}
-              {item.actionUrl && <Link className="button secondary inline-button" to={item.actionUrl}>Ver estado de cuenta</Link>}
+              {item.actionUrl && <Link className="button secondary inline-button" to={item.actionUrl}>{actionLabel(item.actionUrl)}</Link>}
             </div>
           </article>
         ))}
       </section>
-
-      <PushDevPanel />
 
       {preferences && (
         <section className="panel legacy-panel notification-preferences">
@@ -223,7 +224,7 @@ export function NotificationsPage() {
             <p className="legacy-kicker">Preferencias</p>
             <h3>Qué avisos querés recibir</h3>
             <p className="muted">
-              Las preferencias se guardan en tu perfil. Los avisos dentro de la aplicación son reales y se actualizan en tiempo real. En DEV también podés validar un push real de navegador mediante Firebase Cloud Messaging; el envío automático de push y correo queda para una etapa con backend.
+              Las preferencias se guardan en tu perfil. Los avisos dentro de la aplicación se actualizan en tiempo real y, cuando registrás este dispositivo, también pueden mostrarse como notificaciones del sistema. El correo electrónico permanece pendiente para una etapa posterior.
             </p>
           </div>
 
@@ -245,10 +246,10 @@ export function NotificationsPage() {
           </label>
 
           <div className="cuotas-info-box">
-            <strong>Notificaciones push del dispositivo.</strong>{' '}
+            <strong>Notificaciones en este dispositivo.</strong>{' '}
             {preferences.push && devicePushEnabled
-              ? 'Este navegador está registrado para recibir avisos aunque CCNSA no esté abierta.'
-              : 'Podés registrar este dispositivo para recibir avisos del sistema.'}
+              ? 'Este dispositivo está registrado para recibir avisos aunque CCNSA no esté abierta.'
+              : 'Podés registrar este dispositivo para recibir avisos del sistema cuando la aplicación esté en segundo plano o cerrada.'}
             <div className="socio-actions" style={{ marginTop: 10 }}>
               {preferences.push && devicePushEnabled ? (
                 <button className="button secondary inline-button" type="button" onClick={() => void disablePushForDevice()} disabled={pushBusy}>

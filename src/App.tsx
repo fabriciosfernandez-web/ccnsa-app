@@ -16,6 +16,7 @@ import { ForbiddenPage } from './pages/ForbiddenPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { SocioDashboard } from './pages/SocioDashboard'
+import { SocioHomePage } from './pages/SocioHomePage'
 import { SocioProfilePage } from './pages/SocioProfilePage'
 
 function HomeRedirect() {
@@ -23,7 +24,7 @@ function HomeRedirect() {
 
   if (loading) return <div className="screen-message">Cargando…</div>
   if (!user || !profile) return <Navigate to="/login" replace />
-  if (profile.role === 'SOCIO') return <Navigate to="/socio" replace />
+  if (profile.role === 'SOCIO') return <Navigate to="/socio/inicio" replace />
   return <Navigate to="/admin" replace />
 }
 
@@ -38,6 +39,7 @@ export default function App() {
 
           <Route element={<ProtectedRoute allowedRoles={['SOCIO']} />}>
             <Route element={<AppShell />}>
+              <Route path="/socio/inicio" element={<SocioHomePage />} />
               <Route path="/socio" element={<SocioDashboard />} />
               <Route path="/socio/notificaciones" element={<NotificationsPage />} />
               <Route path="/socio/perfil" element={<SocioProfilePage />} />

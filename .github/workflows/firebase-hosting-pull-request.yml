@@ -54,7 +54,7 @@ jobs:
         if: steps.auth_dev_rules.outcome == 'success'
         run: npm --prefix functions install
 
-      - name: Deploy push Function to DEV
+      - name: Deploy Functions to DEV
         if: steps.auth_dev_rules.outcome == 'success'
         continue-on-error: true
-        run: npx --yes firebase-tools@latest deploy --only functions:deliverNotificationPush --project ccnsa-web-dev --non-interactive
+        run: npx --yes firebase-tools@latest deploy --only functions --project ccnsa-web-dev --non-interactive

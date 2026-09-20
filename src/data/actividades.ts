@@ -4,21 +4,24 @@ import {
   getDocs,
   query,
   runTransaction,
-  setDoc,
   serverTimestamp,
+  updateDoc,
   writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
   type Timestamp,
   where,
 } from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { getFunctions, httpsCallable } from 'firebase/functions'
+import { db, firebaseApp } from '../lib/firebase'
 
 export type ActividadTipo = 'RETIRO' | 'SAN_JUAN' | 'CLUB_DAMAS' | 'ACADEMIA' | 'OTRO'
 export type ActividadEstado = 'PLANIFICADA' | 'ACTIVA' | 'CERRADA' | 'CANCELADA'
 export type MovimientoActividadTipo = 'INGRESO' | 'EGRESO'
 export type MovimientoActividadEstado = 'REGISTRADO' | 'ANULADO'
-export type ActividadInscripcionEstado = 'CONFIRMADA' | 'CANCELADA'
+export type ActividadInscripcionEstado = 'CONFIRMADA' | 'ESPERA' | 'CANCELADA'
+export type ActividadPagoEstado = 'NO_APLICA' | 'PENDIENTE' | 'PAGADO'
+export type ActividadAsistenciaEstado = 'PENDIENTE' | 'PRESENTE' | 'AUSENTE'
 
 export interface ActividadActor {
   uid: string
@@ -36,6 +39,11 @@ export interface Actividad {
   estado: ActividadEstado
   descripcion?: string
   presupuesto?: number
+  cupo?: number
+  costoInscripcion: number
+  permiteAcompanantes: boolean
+  maxAcompanantes: number
+  cuposOcupados: number
   actorUid?: string
   actorNombre?: string
   createdAt?: Timestamp
@@ -75,6 +83,10 @@ export interface ActividadInscripcion {
   uid: string
   socioNombre: string
   estado: ActividadInscripcionEstado
+  acompanantes: number
+  estadoPago: ActividadPagoEstado
+  asistencia: ActividadAsistenciaEstado
+  importeInscripcion: number
   createdAt?: Timestamp
   updatedAt?: Timestamp
 }
@@ -87,6 +99,17 @@ export interface NuevaActividad {
   estado: ActividadEstado
   descripcion?: string
   presupuesto?: number
+  cupo?: number
+  costoInscripcion?: number
+  permiteAcompanantes?: boolean
+  maxAcompanantes?: number
+}
+
+export interface ActividadInscripcionConfig {
+  cupo?: number
+  costoInscripcion: number
+  permiteAcompanantes: boolean
+  maxAcompanantes: number
 }
 
 export interface NuevoMovimientoActividad {
@@ -150,6 +173,11 @@ function mapActividad(snapshot: QueryDocumentSnapshot<DocumentData>): Actividad 
     estado: actividadEstado(data),
     descripcion: asString(data.descripcion) || undefined,
     presupuesto: Number.isFinite(Number(data.presupuesto)) ? Number(data.presupuesto) : undefined,
+    cupo: Number(data.cupo) > 0 ? Number(data.cupo) : undefined,
+    costoInscripcion: Math.max(0, asNumber(data.costoInscripcion)),
+    permiteAcompanantes: data.permiteAcompanantes === true,
+    maxAcompanantes: Math.max(0, Math.trunc(asNumber(data.maxAcompanantes))),
+    cuposOcupados: Math.max(0, Math.trunc(asNumber(data.cuposOcupados))),
     actorUid: asString(data.actorUid) || undefined,
     actorNombre: asString(data.actorNombre) || undefined,
     createdAt: data.createdAt as Timestamp | undefined,
@@ -194,7 +222,11 @@ function mapInscripcion(snapshot: QueryDocumentSnapshot<DocumentData>): Activida
     socioId: asString(data.socioId),
     uid: asString(data.uid),
     socioNombre: asString(data.socioNombre) || 'Socio',
-    estado: data.estado === 'CANCELADA' ? 'CANCELADA' : 'CONFIRMADA',
+    estado: data.estado === 'CANCELADA' ? 'CANCELADA' : data.estado === 'ESPERA' ? 'ESPERA' : 'CONFIRMADA',
+    acompanantes: Math.max(0, Math.trunc(asNumber(data.acompanantes))),
+    estadoPago: data.estadoPago === 'PAGADO' ? 'PAGADO' : data.estadoPago === 'PENDIENTE' ? 'PENDIENTE' : 'NO_APLICA',
+    asistencia: data.asistencia === 'PRESENTE' ? 'PRESENTE' : data.asistencia === 'AUSENTE' ? 'AUSENTE' : 'PENDIENTE',
+    importeInscripcion: Math.max(0, asNumber(data.importeInscripcion)),
     createdAt: data.createdAt as Timestamp | undefined,
     updatedAt: data.updatedAt as Timestamp | undefined,
   }
@@ -213,6 +245,15 @@ function validateActividad(input: NuevaActividad) {
   }
   if (input.presupuesto !== undefined && (!Number.isFinite(input.presupuesto) || input.presupuesto < 0)) {
     throw new Error('El presupuesto no puede ser negativo.')
+  }
+  if (input.cupo !== undefined && (!Number.isInteger(input.cupo) || input.cupo <= 0)) {
+    throw new Error('El cupo debe ser un entero mayor a cero.')
+  }
+  if (input.costoInscripcion !== undefined && (!Number.isFinite(input.costoInscripcion) || input.costoInscripcion < 0)) {
+    throw new Error('El costo de inscripción no puede ser negativo.')
+  }
+  if (input.maxAcompanantes !== undefined && (!Number.isInteger(input.maxAcompanantes) || input.maxAcompanantes < 0)) {
+    throw new Error('La cantidad máxima de acompañantes no es válida.')
   }
 }
 
@@ -255,28 +296,34 @@ export async function loadSocioActivityRegistrations(socioId: string, uid: strin
 export async function setSocioActivityRegistration(
   actividad: Actividad,
   socio: { socioId: string; uid: string; nombre: string },
-  estado: ActividadInscripcionEstado,
+  estado: 'CONFIRMADA' | 'CANCELADA',
+  acompanantes = 0,
 ) {
+  if (!firebaseApp) throw new Error('Firebase no está configurado.')
   if (actividad.estado !== 'PLANIFICADA' && actividad.estado !== 'ACTIVA') {
     throw new Error('La actividad ya no admite confirmaciones.')
   }
 
-  const database = requireDb()
-  const id = `${actividad.id}__${socio.socioId}`
-  const ref = doc(database, 'actividad_inscripciones', id)
+  const callable = httpsCallable<
+    { actividadId: string; action: 'CONFIRM' | 'CANCEL'; acompanantes: number },
+    {
+      id: string
+      estado: ActividadInscripcionEstado
+      acompanantes: number
+      estadoPago: ActividadPagoEstado
+      asistencia: ActividadAsistenciaEstado
+      importeInscripcion: number
+      cuposOcupados: number
+    }
+  >(getFunctions(firebaseApp), 'registerForActivity')
 
-  await setDoc(ref, {
+  const response = await callable({
     actividadId: actividad.id,
-    actividadNombre: actividad.nombre,
-    socioId: socio.socioId,
-    uid: socio.uid,
-    socioNombre: socio.nombre.trim() || 'Socio',
-    estado,
-    updatedAt: serverTimestamp(),
-    createdAt: serverTimestamp(),
-  }, { merge: true })
+    action: estado === 'CANCELADA' ? 'CANCEL' : 'CONFIRM',
+    acompanantes,
+  })
 
-  return id
+  return response.data
 }
 
 export async function loadActividades(): Promise<ActividadesSnapshot> {
@@ -316,6 +363,11 @@ export async function createActividad(input: NuevaActividad, actor: ActividadAct
     estado: input.estado,
     descripcion: input.descripcion?.trim() || null,
     presupuesto: input.presupuesto ?? null,
+    cupo: input.cupo ?? null,
+    costoInscripcion: Math.max(0, input.costoInscripcion ?? 0),
+    permiteAcompanantes: input.permiteAcompanantes === true,
+    maxAcompanantes: input.permiteAcompanantes ? Math.max(0, input.maxAcompanantes ?? 0) : 0,
+    cuposOcupados: 0,
     ...actorSnapshot,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -334,6 +386,88 @@ export async function createActividad(input: NuevaActividad, actor: ActividadAct
 
   await batch.commit()
   return actividadRef.id
+}
+
+export async function updateActividadInscripcionConfig(
+  actividadId: string,
+  config: ActividadInscripcionConfig,
+  actor: ActividadActor,
+) {
+  const cupo = config.cupo
+  if (cupo !== undefined && (!Number.isInteger(cupo) || cupo <= 0)) {
+    throw new Error('El cupo debe ser un entero mayor a cero.')
+  }
+  if (!Number.isFinite(config.costoInscripcion) || config.costoInscripcion < 0) {
+    throw new Error('El costo de inscripción no puede ser negativo.')
+  }
+  if (!Number.isInteger(config.maxAcompanantes) || config.maxAcompanantes < 0) {
+    throw new Error('La cantidad máxima de acompañantes no es válida.')
+  }
+
+  const database = requireDb()
+  const actividadRef = doc(database, 'actividades', actividadId)
+  const auditRef = doc(collection(database, 'audit_log'))
+  const actorSnapshot = actorFields(actor)
+
+  await runTransaction(database, async (transaction) => {
+    const snapshot = await transaction.get(actividadRef)
+    if (!snapshot.exists()) throw new Error('La actividad ya no existe.')
+    const data = snapshot.data()
+    const ocupados = Math.max(0, Math.trunc(asNumber(data.cuposOcupados)))
+    if (cupo !== undefined && cupo < ocupados) {
+      throw new Error(`El cupo no puede ser menor a los ${ocupados} lugares ya ocupados.`)
+    }
+
+    transaction.update(actividadRef, {
+      cupo: cupo ?? null,
+      costoInscripcion: config.costoInscripcion,
+      permiteAcompanantes: config.permiteAcompanantes,
+      maxAcompanantes: config.permiteAcompanantes ? config.maxAcompanantes : 0,
+      updatedAt: serverTimestamp(),
+      updatedByUid: actor.uid,
+      updatedByNombre: actorSnapshot.actorNombre,
+    })
+
+    transaction.set(auditRef, {
+      ...actorSnapshot,
+      action: 'ACTIVIDAD_REGISTRATION_CONFIG_UPDATED',
+      entity: 'actividades',
+      entityId: actividadId,
+      concepto: asString(data.nombre),
+      cupo: cupo ?? null,
+      costoInscripcion: config.costoInscripcion,
+      permiteAcompanantes: config.permiteAcompanantes,
+      maxAcompanantes: config.permiteAcompanantes ? config.maxAcompanantes : 0,
+      createdAt: serverTimestamp(),
+    })
+  })
+}
+
+export async function updateActividadInscripcionAdmin(
+  inscripcionId: string,
+  changes: Partial<Pick<ActividadInscripcion, 'estadoPago' | 'asistencia'>>,
+  actor: ActividadActor,
+) {
+  const database = requireDb()
+  const fields: Record<string, unknown> = {
+    updatedAt: serverTimestamp(),
+    updatedByUid: actor.uid,
+    updatedByNombre: actor.nombre.trim() || actor.uid,
+  }
+  if (changes.estadoPago) fields.estadoPago = changes.estadoPago
+  if (changes.asistencia) fields.asistencia = changes.asistencia
+
+  await updateDoc(doc(database, 'actividad_inscripciones', inscripcionId), fields)
+
+  const auditRef = doc(collection(database, 'audit_log'))
+  await writeBatch(database).set(auditRef, {
+    ...actorFields(actor),
+    action: 'ACTIVIDAD_REGISTRATION_ADMIN_UPDATED',
+    entity: 'actividad_inscripciones',
+    entityId: inscripcionId,
+    ...changes,
+    createdAt: serverTimestamp(),
+  }).commit()
 }
 
 export async function setActividadEstado(actividadId: string, estado: ActividadEstado, actor: ActividadActor) {

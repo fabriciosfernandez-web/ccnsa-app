@@ -19,6 +19,8 @@ export function AdminNotificationsDevPage() {
   const [sending, setSending] = useState(false)
   const [recipientStatus, setRecipientStatus] = useState<PushRecipientStatus | null>(null)
   const [loadingRecipientStatus, setLoadingRecipientStatus] = useState(false)
+  const [recipientError, setRecipientError] = useState('')
+  const [deliveryError, setDeliveryError] = useState('')
   const [deliveries, setDeliveries] = useState<NotificationDelivery[]>([])
   const [loadingDeliveries, setLoadingDeliveries] = useState(true)
   const [message, setMessage] = useState('')
@@ -46,10 +48,13 @@ export function AdminNotificationsDevPage() {
       return
     }
     setLoadingRecipientStatus(true)
+    setRecipientError('')
+    setRecipientStatus(null)
     try {
       setRecipientStatus(await getPushRecipientStatus(socioId))
-    } catch {
+    } catch (caught) {
       setRecipientStatus(null)
+      setRecipientError(`No se pudo consultar el backend push: ${caught instanceof Error ? caught.message : 'Error de conexión'}. Revisá el despliegue de Functions.`)
     } finally {
       setLoadingRecipientStatus(false)
     }
@@ -57,10 +62,11 @@ export function AdminNotificationsDevPage() {
 
   async function refreshDeliveries() {
     setLoadingDeliveries(true)
+    setDeliveryError('')
     try {
       setDeliveries(await listRecentPushDeliveries())
-    } catch {
-      setDeliveries([])
+    } catch (caught) {
+      setDeliveryError(`No se pudieron consultar las entregas: ${caught instanceof Error ? caught.message : 'Error de conexión'}`)
     } finally {
       setLoadingDeliveries(false)
     }
@@ -107,7 +113,7 @@ export function AdminNotificationsDevPage() {
       }
 
       const socio = socios.find((item) => item.id === selectedSocioId)
-      setMessage(`Aviso enviado a ${socio?.nombre || 'el socio'}. Aparecerá en su centro de notificaciones y, si tiene push activo, el backend intentará entregarlo también al dispositivo.`)
+      setMessage(`Aviso creado para ${socio?.nombre || 'el socio'} (${result.id}). La recepción push todavía no está confirmada; consultá su entrega abajo.`)
       window.setTimeout(() => { void refreshDeliveries() }, 1500)
       form.reset()
       setSelectedSocioId(selectedSocioId)
@@ -169,14 +175,16 @@ export function AdminNotificationsDevPage() {
               <span>Destino push</span>
               <strong>{loadingRecipientStatus
                 ? 'Comprobando…'
+                : recipientError ? 'Estado no verificado'
                 : recipientStatus?.deliverable
                   ? `${recipientStatus.activeDevices} dispositivo(s) activo(s)`
                   : 'Sin entrega push disponible'}</strong>
             </div>
             <span className={`status-badge ${recipientStatus?.deliverable ? 'success' : 'neutral'}`}>
-              {recipientStatus?.deliverable ? 'Push listo' : recipientStatus?.pushEnabled ? 'Sin dispositivo' : 'Push desactivado'}
+              {loadingRecipientStatus ? 'Comprobando' : recipientError || !recipientStatus ? 'Sin verificar' : recipientStatus?.deliverable ? 'Push listo' : recipientStatus?.pushEnabled ? 'Sin dispositivo' : 'Push desactivado'}
             </span>
             <small>
+              {recipientError && <span role="alert">{recipientError} </span>}
               El push se envía únicamente a dispositivos registrados por el socio seleccionado. El token de prueba del panel técnico corresponde solo a este navegador ADMIN.
             </small>
           </div>
@@ -229,7 +237,7 @@ export function AdminNotificationsDevPage() {
             <p className="legacy-kicker">Trazabilidad técnica</p>
             <h3>Últimas entregas push</h3>
             <p className="muted">
-              Permite verificar si el backend entregó, omitió o falló al procesar una notificación.
+              SENT indica que FCM aceptó el envío; no confirma que el dispositivo lo mostró. Si no aparece un registro para el aviso creado, el procesamiento del backend no está confirmado.
             </p>
           </div>
           <button className="button secondary inline-button" type="button" onClick={() => void refreshDeliveries()} disabled={loadingDeliveries}>
@@ -237,6 +245,7 @@ export function AdminNotificationsDevPage() {
           </button>
         </div>
 
+        {deliveryError && <p className="notice error" role="alert">{deliveryError}</p>}
         {loadingDeliveries ? (
           <div className="screen-message">Cargando entregas…</div>
         ) : deliveries.length === 0 ? (
@@ -248,6 +257,7 @@ export function AdminNotificationsDevPage() {
                 <tr>
                   <th>Estado</th>
                   <th>Socio</th>
+                  <th>Aviso</th>
                   <th>Enviados</th>
                   <th>Fallidos</th>
                   <th>Motivo</th>
@@ -259,6 +269,7 @@ export function AdminNotificationsDevPage() {
                   <tr key={delivery.id || delivery.notificationId}>
                     <td><span className={`status-badge ${delivery.status === 'SENT' ? 'success' : delivery.status === 'FAILED' ? 'danger' : 'neutral'}`}>{delivery.status}</span></td>
                     <td>{delivery.socioId || '—'}</td>
+                    <td>{delivery.notificationId}</td>
                     <td>{delivery.successCount ?? '—'}</td>
                     <td>{delivery.failureCount ?? '—'}</td>
                     <td>{delivery.reason || '—'}</td>

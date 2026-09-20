@@ -27,17 +27,8 @@ jobs:
       - name: Build DEV
         run: npm run build
 
-      - name: Deploy preview to Firebase Hosting DEV
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCNSA_WEB_DEV }}
-          projectId: ccnsa-web-dev
-          expires: 7d
-
       - name: Authenticate for Firebase DEV rules
         id: auth_dev_rules
-        continue-on-error: true
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCNSA_WEB_DEV }}
@@ -48,7 +39,6 @@ jobs:
 
       - name: Deploy Firestore rules to DEV
         if: steps.auth_dev_rules.outcome == 'success'
-        continue-on-error: true
         run: npx --yes firebase-tools@latest deploy --only firestore:rules --project ccnsa-web-dev --non-interactive
 
       - name: Install Functions dependencies
@@ -57,5 +47,15 @@ jobs:
 
       - name: Deploy Functions to DEV
         if: steps.auth_dev_rules.outcome == 'success'
-        continue-on-error: true
-        run: npx --yes firebase-tools@latest deploy --only functions --project ccnsa-web-dev --non-interactive
+        run: |
+          npm --prefix functions test
+          npx --yes firebase-tools@latest deploy --only functions --project ccnsa-web-dev --non-interactive
+
+      # Publish the preview only after its backend has deployed successfully.
+      - name: Deploy preview to Firebase Hosting DEV
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCNSA_WEB_DEV }}
+          projectId: ccnsa-web-dev
+          expires: 7d

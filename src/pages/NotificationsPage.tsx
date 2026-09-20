@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import {
   disableCurrentPushDevice,
-  hasStoredPushDevice,
   registerPushDevice,
 } from '../notifications/pushSubscriptionService'
 import {
@@ -45,7 +44,7 @@ export function NotificationsPage() {
   const [savingPreference, setSavingPreference] = useState<string | null>(null)
   const [markingAll, setMarkingAll] = useState(false)
   const [pushBusy, setPushBusy] = useState(false)
-  const [devicePushEnabled, setDevicePushEnabled] = useState(hasStoredPushDevice)
+  const [devicePushEnabled, setDevicePushEnabled] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -83,15 +82,19 @@ export function NotificationsPage() {
   )
 
   useEffect(() => {
-    if (!preferences?.push || !socioId || !user || Notification.permission !== 'granted') return
+    setDevicePushEnabled(false)
+    if (!preferences?.push || !socioId || !user || typeof Notification === 'undefined' || Notification.permission !== 'granted') return
     let active = true
 
     async function revalidatePushDevice() {
       try {
         await registerPushDevice(socioId!, user!.uid)
         if (active) setDevicePushEnabled(true)
-      } catch {
-        if (active) setDevicePushEnabled(false)
+      } catch (caught) {
+        if (active) {
+          setDevicePushEnabled(false)
+          setError(`No se pudo verificar el registro push: ${errorMessage(caught)}`)
+        }
       }
     }
 

@@ -59,10 +59,15 @@ export function AppShell() {
   const location = useLocation()
   const { preference, setPreference } = useTheme()
   const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const meta = routeMeta(location.pathname)
   const configuredLogo = String(import.meta.env.VITE_BRAND_LOGO_URL || '').trim()
   const brandLogo = configuredLogo || '/ccnsa-logo.webp'
   const profileContext = userProfileContextLabel(profile)
+
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [location.pathname])
 
   useEffect(() => {
     if (profile?.role !== 'SOCIO' || !profile.socioId) {
@@ -79,7 +84,15 @@ export function AppShell() {
 
   return (
     <div className="app-shell legacy-app-shell">
-      <aside className="sidebar legacy-sidebar">
+      {mobileNavOpen && (
+        <button
+          className="mobile-nav-backdrop"
+          type="button"
+          aria-label="Cerrar menú"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+      <aside className={`sidebar legacy-sidebar ${mobileNavOpen ? 'mobile-open' : ''}`}>
         <div className="enterprise-brand">
           <div className="enterprise-brand-mark">
             <img src={brandLogo} alt="Escudo de CCNSA" />
@@ -88,6 +101,14 @@ export function AppShell() {
             <span>Centro Cultural</span>
             <strong>CCNSA</strong>
           </div>
+          <button
+            className="mobile-nav-close"
+            type="button"
+            aria-label="Cerrar menú"
+            onClick={() => setMobileNavOpen(false)}
+          >
+            ×
+          </button>
         </div>
 
         {appEnvironment === 'dev' && (
@@ -151,6 +172,17 @@ export function AppShell() {
 
       <main className="main-content legacy-main-content">
         <header className="workspace-topbar">
+          <button
+            className="mobile-nav-toggle"
+            type="button"
+            aria-label="Abrir menú"
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
           <div className="workspace-heading">
             <small>{meta.section}</small>
             <strong>{meta.title}</strong>

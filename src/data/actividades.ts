@@ -237,12 +237,13 @@ export async function loadSocioActividades(): Promise<Actividad[]> {
     .sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio) || a.nombre.localeCompare(b.nombre, 'es'))
 }
 
-export async function loadSocioActivityRegistrations(socioId: string): Promise<ActividadInscripcion[]> {
+export async function loadSocioActivityRegistrations(socioId: string, uid: string): Promise<ActividadInscripcion[]> {
   const database = requireDb()
   const snapshot = await getDocs(
     query(
       collection(database, 'actividad_inscripciones'),
       where('socioId', '==', socioId),
+      where('uid', '==', uid),
     ),
   )
 

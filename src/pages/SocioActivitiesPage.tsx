@@ -46,15 +46,15 @@ export function SocioActivitiesPage() {
 
   useEffect(() => {
     let active = true
-    if (!profile?.socioId) {
-      setError('Tu perfil todavía no está vinculado a una ficha de socio.')
+    if (!profile?.socioId || !user) {
+      setError('Tu perfil todavía no está vinculado correctamente a una ficha de socio.')
       setLoading(false)
       return () => { active = false }
     }
 
     void Promise.all([
       loadSocioActividades(),
-      loadSocioActivityRegistrations(profile.socioId),
+      loadSocioActivityRegistrations(profile.socioId, user.uid),
     ])
       .then(([activities, currentRegistrations]) => {
         if (!active) return
@@ -69,7 +69,7 @@ export function SocioActivitiesPage() {
       })
 
     return () => { active = false }
-  }, [profile?.socioId])
+  }, [profile?.socioId, user])
 
   const activeItems = useMemo(
     () => items.filter((item) => item.estado === 'ACTIVA'),

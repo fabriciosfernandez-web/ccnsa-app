@@ -378,3 +378,82 @@
     flex-direction: column-reverse;
   }
 }
+
+
+.activity-registration-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.activity-registration-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+
+.activity-registration-summary > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.activity-registration-summary span,
+.activity-registration-summary small {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.activity-registration-summary strong {
+  font-size: 1rem;
+}
+
+.activities-registration-table {
+  min-width: 760px;
+}
+
+.activity-registration-sub {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.activity-inline-select {
+  min-width: 118px;
+  padding: 7px 9px;
+  color: var(--text-primary);
+  background: var(--surface-input);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.76rem;
+}
+
+.activity-check {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 9px !important;
+}
+
+.activity-check input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--brand-primary);
+}
+
+@media (max-width: 760px) {
+  .activity-registration-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .activity-registration-badges {
+    justify-content: flex-start;
+  }
+}

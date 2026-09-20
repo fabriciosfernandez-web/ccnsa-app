@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth, userProfileContextLabel } from '../auth/AuthProvider'
 import { appEnvironment } from '../lib/firebase'
 import { subscribeNotificationsForSocio } from '../notifications/firestoreNotificationService'
+import { subscribeForegroundMessages } from '../notifications/webPushDev'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
 
 type NavIconName = 'dashboard' | 'users' | 'finance' | 'activity' | 'settings' | 'rules' | 'audit' | 'migration' | 'check' | 'account' | 'bell'
@@ -81,6 +82,39 @@ export function AppShell() {
       () => setUnreadNotifications(0),
     )
   }, [profile?.role, profile?.socioId])
+
+  // FCM foreground for active socio session: Firebase does not route foreground
+  // messages through onBackgroundMessage, so surface them explicitly.
+  useEffect(() => {
+    if (profile?.role !== 'SOCIO') return
+
+    let active = true
+    let unsubscribe: (() => void) | undefined
+
+    void subscribeForegroundMessages(async (payload) => {
+      if (!active || Notification.permission !== 'granted') return
+      const title = payload.notification?.title || payload.data?.title || 'CCNSA'
+      const body = payload.notification?.body || payload.data?.body || 'Tenés una nueva notificación.'
+      const actionUrl = payload.data?.actionUrl || '/socio/notificaciones'
+      const notificationId = payload.data?.notificationId || Date.now().toString()
+
+      try {
+        const registration = await navigator.serviceWorker.ready
+        await registration.showNotification(title, {
+          body,
+          tag: `ccnsa-${notificationId}`,
+          data: { url: actionUrl },
+        })
+      } catch {
+        // El aviso in-app sigue disponible aunque el SO rechace el popup foreground.
+      }
+    }).then((fn) => { unsubscribe = fn })
+
+    return () => {
+      active = false
+      unsubscribe?.()
+    }
+  }, [profile?.role])
 
   return (
     <div className="app-shell legacy-app-shell">

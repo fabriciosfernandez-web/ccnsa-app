@@ -884,7 +884,7 @@ table tbody tr:hover {
     height: 100dvh;
     max-height: 100dvh;
     padding: 18px 16px;
-    overflow-y: auto;
+    overflow: hidden;
     transform: translateX(-104%);
     transition: transform 180ms ease;
     box-shadow: 18px 0 48px rgba(4, 14, 22, 0.32);
@@ -945,7 +945,20 @@ table tbody tr:hover {
   }
 
   .nav-list {
-    overflow: visible;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sidebar-user {
+    flex: 0 0 auto;
+    margin-top: 0;
+    padding-top: 12px;
+    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--sidebar-bg-2) 96%, transparent) 18%);
   }
 
   .workspace-topbar {

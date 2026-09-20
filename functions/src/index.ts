@@ -415,3 +415,55 @@ export const registerForActivity = onCall(
     return result
   },
 )
+
+
+type PushRecipientStatusRequest = {
+  socioId?: unknown
+}
+
+export const getPushRecipientStatus = onCall(
+  {
+    minInstances: 0,
+    maxInstances: 1,
+    memory: '256MiB',
+    cpu: 'gcf_gen1',
+    timeoutSeconds: 20,
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'Iniciá sesión para consultar el estado push.')
+    }
+
+    const callerSnapshot = await database.collection('users').doc(request.auth.uid).get()
+    const caller = callerSnapshot.data() ?? {}
+    if (!callerSnapshot.exists || caller.active !== true || !['ADMIN', 'TESORERIA'].includes(stringValue(caller.role))) {
+      throw new HttpsError('permission-denied', 'No tenés permisos para consultar dispositivos push.')
+    }
+
+    const socioId = stringValue((request.data ?? {} as PushRecipientStatusRequest).socioId)
+    if (!socioId) {
+      throw new HttpsError('invalid-argument', 'Seleccioná un socio.')
+    }
+
+    const [subscriptionsSnapshot, preferencesSnapshot] = await Promise.all([
+      database.collection('push_subscriptions').where('socioId', '==', socioId).get(),
+      database.collection('notification_preferences').doc(socioId).get(),
+    ])
+
+    const activeDevices = subscriptionsSnapshot.docs.filter((document) => {
+      const data = document.data()
+      return data.enabled === true && stringValue(data.token).length > 20
+    }).length
+
+    const preferences = preferencesSnapshot.exists ? preferencesSnapshot.data() ?? {} : {}
+
+    return {
+      socioId,
+      activeDevices,
+      pushEnabled: preferences.push === true,
+      inAppEnabled: preferences.inApp !== false,
+      emailEnabled: preferences.email === true,
+      deliverable: preferences.push === true && activeDevices > 0,
+    }
+  },
+)

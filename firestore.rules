@@ -90,6 +90,20 @@ service cloud.firestore {
         ]);
     }
 
+    function canUpdateActividadRegistrationConfig() {
+      return (isAdmin() || isTreasury())
+        && request.resource.data.updatedByUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'cupo',
+          'costoInscripcion',
+          'permiteAcompanantes',
+          'maxAcompanantes',
+          'updatedAt',
+          'updatedByUid',
+          'updatedByNombre'
+        ]);
+    }
+
     function canCreateActividadMovement() {
       return (isAdmin() || isTreasury())
         && request.resource.data.actorUid == request.auth.uid
@@ -178,7 +192,7 @@ service cloud.firestore {
       allow read: if isStaff()
         || (isSocio() && resource.data.estado in ['PLANIFICADA', 'ACTIVA']);
       allow create: if canCreateActividad();
-      allow update: if canUpdateActividad();
+      allow update: if canUpdateActividad() || canUpdateActividadRegistrationConfig();
       allow delete: if false;
     }
 
@@ -195,30 +209,21 @@ service cloud.firestore {
           && resource.data.socioId == currentSocioId()
           && resource.data.uid == request.auth.uid);
 
-      allow create: if isSocio()
-        && request.resource.data.socioId == currentSocioId()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.actividadId is string
-        && request.resource.data.actividadNombre is string
-        && request.resource.data.socioNombre is string
-        && request.resource.data.estado in ['CONFIRMADA', 'CANCELADA']
-        && get(/databases/$(database)/documents/actividades/$(request.resource.data.actividadId)).data.estado in ['PLANIFICADA', 'ACTIVA'];
+      // Las altas/cancelaciones del socio pasan por una Cloud Function para
+      // mantener cupos y lista de espera de forma atómica.
+      allow create: if false;
 
-      allow update: if isSocio()
-        && resource.data.socioId == currentSocioId()
-        && resource.data.uid == request.auth.uid
-        && request.resource.data.socioId == resource.data.socioId
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.actividadId == resource.data.actividadId
-        && request.resource.data.actividadNombre == resource.data.actividadNombre
-        && request.resource.data.socioNombre == resource.data.socioNombre
-        && request.resource.data.estado in ['CONFIRMADA', 'CANCELADA']
+      allow update: if (isAdmin() || isTreasury())
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'estado',
+          'estadoPago',
+          'asistencia',
           'updatedAt',
-          'createdAt'
+          'updatedByUid',
+          'updatedByNombre'
         ])
-        && get(/databases/$(database)/documents/actividades/$(resource.data.actividadId)).data.estado in ['PLANIFICADA', 'ACTIVA'];
+        && request.resource.data.updatedByUid == request.auth.uid
+        && request.resource.data.estadoPago in ['NO_APLICA', 'PENDIENTE', 'PAGADO']
+        && request.resource.data.asistencia in ['PENDIENTE', 'PRESENTE', 'AUSENTE'];
 
       allow delete: if false;
     }

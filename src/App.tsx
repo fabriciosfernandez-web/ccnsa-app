@@ -15,6 +15,7 @@ import { AdminSociosPage } from './pages/AdminSociosPage'
 import { ForbiddenPage } from './pages/ForbiddenPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
+import { SocioActivitiesPage } from './pages/SocioActivitiesPage'
 import { SocioDashboard } from './pages/SocioDashboard'
 import { SocioHomePage } from './pages/SocioHomePage'
 import { SocioProfilePage } from './pages/SocioProfilePage'
@@ -40,6 +41,7 @@ export default function App() {
           <Route element={<ProtectedRoute allowedRoles={['SOCIO']} />}>
             <Route element={<AppShell />}>
               <Route path="/socio/inicio" element={<SocioHomePage />} />
+              <Route path="/socio/actividades" element={<SocioActivitiesPage />} />
               <Route path="/socio" element={<SocioDashboard />} />
               <Route path="/socio/notificaciones" element={<NotificationsPage />} />
               <Route path="/socio/perfil" element={<SocioProfilePage />} />

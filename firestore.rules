@@ -175,7 +175,8 @@ service cloud.firestore {
     }
 
     match /actividades/{actividadId} {
-      allow read: if isStaff();
+      allow read: if isStaff()
+        || (isSocio() && resource.data.estado in ['PLANIFICADA', 'ACTIVA']);
       allow create: if canCreateActividad();
       allow update: if canUpdateActividad();
       allow delete: if false;

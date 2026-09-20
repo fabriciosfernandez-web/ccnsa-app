@@ -157,10 +157,11 @@ export function SocioHomePage() {
               <article>
                 <span className="socio-home-service-icon">A</span>
                 <div>
-                  <strong>Actividades e inscripciones</strong>
-                  <p>Próximamente: agenda institucional, retiros, Academia y otras actividades habilitadas para socios.</p>
+                  <strong>Actividades</strong>
+                  <p>Consultá la agenda institucional, retiros, Academia y otras actividades disponibles para socios.</p>
+                  <Link className="button secondary inline-button socio-home-service-link" to="/socio/actividades">Ver actividades</Link>
                 </div>
-                <span className="status-badge neutral">En preparación</span>
+                <span className="status-badge success">Disponible</span>
               </article>
 
               <article>

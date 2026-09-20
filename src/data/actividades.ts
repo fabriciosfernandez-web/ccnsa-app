@@ -2,12 +2,14 @@ import {
   collection,
   doc,
   getDocs,
+  query,
   runTransaction,
   serverTimestamp,
   writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
   type Timestamp,
+  where,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
@@ -189,6 +191,20 @@ function validateMovimiento(input: NuevoMovimientoActividad) {
   if (!input.concepto.trim()) throw new Error('Indicá el concepto del movimiento.')
   if (!input.categoria.trim()) throw new Error('Indicá una categoría.')
   if (!Number.isFinite(input.importe) || input.importe <= 0) throw new Error('El importe debe ser mayor a cero.')
+}
+
+export async function loadSocioActividades(): Promise<Actividad[]> {
+  const database = requireDb()
+  const snapshot = await getDocs(
+    query(
+      collection(database, 'actividades'),
+      where('estado', 'in', ['PLANIFICADA', 'ACTIVA']),
+    ),
+  )
+
+  return snapshot.docs
+    .map(mapActividad)
+    .sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio) || a.nombre.localeCompare(b.nombre, 'es'))
 }
 
 export async function loadActividades(): Promise<ActividadesSnapshot> {

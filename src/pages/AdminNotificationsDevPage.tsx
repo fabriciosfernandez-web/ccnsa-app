@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { PushDevPanel } from '../components/PushDevPanel'
+import { getPushRecipientStatus, type PushRecipientStatus } from '../notifications/adminPushStatusService'
 import { listSocios, type Socio } from '../data/socios'
 import { appEnvironment } from '../lib/firebase'
 import {
@@ -16,6 +17,8 @@ export function AdminNotificationsDevPage() {
   const [socios, setSocios] = useState<Socio[]>([])
   const [selectedSocioId, setSelectedSocioId] = useState('')
   const [sending, setSending] = useState(false)
+  const [recipientStatus, setRecipientStatus] = useState<PushRecipientStatus | null>(null)
+  const [loadingRecipientStatus, setLoadingRecipientStatus] = useState(false)
   const [deliveries, setDeliveries] = useState<NotificationDelivery[]>([])
   const [loadingDeliveries, setLoadingDeliveries] = useState(true)
   const [message, setMessage] = useState('')
@@ -37,6 +40,21 @@ export function AdminNotificationsDevPage() {
     return () => { active = false }
   }, [])
 
+  async function refreshRecipientStatus(socioId = selectedSocioId) {
+    if (!socioId) {
+      setRecipientStatus(null)
+      return
+    }
+    setLoadingRecipientStatus(true)
+    try {
+      setRecipientStatus(await getPushRecipientStatus(socioId))
+    } catch {
+      setRecipientStatus(null)
+    } finally {
+      setLoadingRecipientStatus(false)
+    }
+  }
+
   async function refreshDeliveries() {
     setLoadingDeliveries(true)
     try {
@@ -51,6 +69,10 @@ export function AdminNotificationsDevPage() {
   useEffect(() => {
     void refreshDeliveries()
   }, [])
+
+  useEffect(() => {
+    void refreshRecipientStatus(selectedSocioId)
+  }, [selectedSocioId])
 
   if (appEnvironment !== 'dev') return <Navigate to="/admin" replace />
 
@@ -142,6 +164,23 @@ export function AdminNotificationsDevPage() {
             </select>
           </label>
 
+          <div className="admin-recipient-status">
+            <div>
+              <span>Destino push</span>
+              <strong>{loadingRecipientStatus
+                ? 'Comprobando…'
+                : recipientStatus?.deliverable
+                  ? `${recipientStatus.activeDevices} dispositivo(s) activo(s)`
+                  : 'Sin entrega push disponible'}</strong>
+            </div>
+            <span className={`status-badge ${recipientStatus?.deliverable ? 'success' : 'neutral'}`}>
+              {recipientStatus?.deliverable ? 'Push listo' : recipientStatus?.pushEnabled ? 'Sin dispositivo' : 'Push desactivado'}
+            </span>
+            <small>
+              El push se envía únicamente a dispositivos registrados por el socio seleccionado. El token de prueba del panel técnico corresponde solo a este navegador ADMIN.
+            </small>
+          </div>
+
           <label>
             Título
             <input
@@ -232,7 +271,13 @@ export function AdminNotificationsDevPage() {
         )}
       </section>
 
-      <PushDevPanel />
+      <details className="admin-push-diagnostics">
+        <summary>Diagnóstico técnico local del navegador ADMIN</summary>
+        <p className="muted">
+          Este panel sirve únicamente para probar FCM en el navegador que estás usando ahora. No selecciona destinatarios ni representa el envío real a socios.
+        </p>
+        <PushDevPanel />
+      </details>
     </section>
   )
 }

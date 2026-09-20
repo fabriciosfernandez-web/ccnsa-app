@@ -10,6 +10,8 @@ export interface PushSetupState {
 }
 
 export function storedVapidKey() {
+  const configured = String(import.meta.env.VITE_FIREBASE_VAPID_KEY || '').trim()
+  if (configured) return configured
   if (typeof window === 'undefined') return ''
   return window.localStorage.getItem(STORAGE_KEY) ?? ''
 }

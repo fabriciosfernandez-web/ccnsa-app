@@ -948,11 +948,16 @@ table tbody tr:hover {
     min-height: 0;
     height: 0;
     flex: 1 1 0;
+    /* The extra width pushes the native scrollbar outside the clipped drawer.
+       This works even in browsers/OS combinations that ignore scrollbar styling. */
+    width: calc(100% + 24px);
+    margin-right: -24px;
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: scroll;
     overscroll-behavior: contain;
-    padding-right: 0;
+    padding-right: 24px;
     padding-bottom: 18px;
+    box-sizing: border-box;
     scrollbar-width: none !important;
     scrollbar-color: transparent transparent;
     -ms-overflow-style: none;

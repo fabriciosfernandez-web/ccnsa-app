@@ -100,7 +100,6 @@ export async function showLocalNotificationTest() {
   const registration = await ensureMessagingServiceWorker()
   await registration.showNotification('CCNSA · Notificación de prueba', {
     body: 'Tu estado de cuenta tiene una actualización. Tocá para ver el detalle.',
-    icon: '/ccnsa-app-icon.webp',
     tag: 'ccnsa-local-push-test',
   })
 }

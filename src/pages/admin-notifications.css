@@ -87,3 +87,63 @@
   display: grid;
   gap: 16px;
 }
+
+
+.admin-recipient-status {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 14px;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.admin-recipient-status div {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-recipient-status span:not(.status-badge),
+.admin-recipient-status small {
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+}
+
+.admin-recipient-status strong {
+  font-size: 0.9rem;
+}
+
+.admin-recipient-status small {
+  grid-column: 1 / -1;
+  line-height: 1.5;
+}
+
+.admin-push-diagnostics {
+  padding: 14px 16px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.admin-push-diagnostics > summary {
+  cursor: pointer;
+  color: var(--text-primary);
+  font-weight: 760;
+}
+
+.admin-push-diagnostics > p {
+  margin: 10px 0 14px;
+}
+
+@media (max-width: 720px) {
+  .admin-recipient-status {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-recipient-status small {
+    grid-column: auto;
+  }
+}

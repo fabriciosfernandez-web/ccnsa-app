@@ -46,7 +46,6 @@ messaging.onBackgroundMessage((payload) => {
 
   return self.registration.showNotification(title, {
     body,
-    icon: '/ccnsa-app-icon.webp',
     tag: data.notificationId ? `ccnsa-${data.notificationId}` : 'ccnsa-notification',
     data: { url },
   })

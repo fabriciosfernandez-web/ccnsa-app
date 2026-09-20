@@ -58,6 +58,8 @@ export async function registerPushDevice(socioId: string, uid: string): Promise<
   if (!token) throw new Error('FCM no devolvió un token para este dispositivo.')
 
   const subscriptionId = await sha256(token)
+  const previousSubscriptionId = window.localStorage.getItem(DEVICE_SUBSCRIPTION_KEY)
+
   await setDoc(doc(database, 'push_subscriptions', subscriptionId), {
     socioId,
     uid,
@@ -68,6 +70,10 @@ export async function registerPushDevice(socioId: string, uid: string): Promise<
     updatedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
   }, { merge: true })
+
+  if (previousSubscriptionId && previousSubscriptionId !== subscriptionId) {
+    await deleteDoc(doc(database, 'push_subscriptions', previousSubscriptionId)).catch(() => undefined)
+  }
 
   window.localStorage.setItem(DEVICE_SUBSCRIPTION_KEY, subscriptionId)
   return { subscriptionId, token }

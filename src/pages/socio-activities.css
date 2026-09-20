@@ -102,3 +102,40 @@
   margin-top: auto;
   padding-top: 4px;
 }
+
+
+.socio-activity-meta {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.socio-activity-meta span {
+  padding: 5px 8px;
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.socio-activity-companions {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 720;
+}
+
+.socio-activity-companions select {
+  min-width: 68px;
+  padding: 7px 9px;
+  color: var(--text-primary);
+  background: var(--surface-input);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+}

@@ -92,3 +92,13 @@
     flex-direction: column;
   }
 }
+
+
+.socio-activity-registration {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 4px;
+}

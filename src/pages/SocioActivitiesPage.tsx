@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadSocioActividades, type Actividad, type ActividadTipo } from '../data/actividades'
+import { useAuth } from '../auth/AuthProvider'
+import {
+  loadSocioActividades,
+  loadSocioActivityRegistrations,
+  setSocioActivityRegistration,
+  type Actividad,
+  type ActividadInscripcion,
+  type ActividadTipo,
+} from '../data/actividades'
 import './socio-activities.css'
 
 function typeLabel(tipo: ActividadTipo) {
@@ -28,15 +36,30 @@ function dateRange(item: Actividad) {
 }
 
 export function SocioActivitiesPage() {
+  const { user, profile } = useAuth()
   const [items, setItems] = useState<Actividad[]>([])
+  const [registrations, setRegistrations] = useState<ActividadInscripcion[]>([])
   const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   useEffect(() => {
     let active = true
-    void loadSocioActividades()
-      .then((activities) => {
-        if (active) setItems(activities)
+    if (!profile?.socioId) {
+      setError('Tu perfil todavía no está vinculado a una ficha de socio.')
+      setLoading(false)
+      return () => { active = false }
+    }
+
+    void Promise.all([
+      loadSocioActividades(),
+      loadSocioActivityRegistrations(profile.socioId),
+    ])
+      .then(([activities, currentRegistrations]) => {
+        if (!active) return
+        setItems(activities)
+        setRegistrations(currentRegistrations)
       })
       .catch(() => {
         if (active) setError('No fue posible cargar las actividades.')
@@ -46,7 +69,7 @@ export function SocioActivitiesPage() {
       })
 
     return () => { active = false }
-  }, [])
+  }, [profile?.socioId])
 
   const activeItems = useMemo(
     () => items.filter((item) => item.estado === 'ACTIVA'),
@@ -56,6 +79,44 @@ export function SocioActivitiesPage() {
     () => items.filter((item) => item.estado === 'PLANIFICADA'),
     [items],
   )
+
+  const registrationByActivity = useMemo(
+    () => new Map(registrations.map((item) => [item.actividadId, item])),
+    [registrations],
+  )
+
+  async function changeRegistration(item: Actividad, next: 'CONFIRMADA' | 'CANCELADA') {
+    if (!user || !profile?.socioId || busyId) return
+    setBusyId(item.id)
+    setError('')
+    setSuccess('')
+    try {
+      const id = await setSocioActivityRegistration(item, {
+        socioId: profile.socioId,
+        uid: user.uid,
+        nombre: profile.displayName,
+      }, next)
+      setRegistrations((current) => {
+        const remaining = current.filter((entry) => entry.actividadId !== item.id)
+        return [...remaining, {
+          id,
+          actividadId: item.id,
+          actividadNombre: item.nombre,
+          socioId: profile.socioId!,
+          uid: user.uid,
+          socioNombre: profile.displayName,
+          estado: next,
+        }]
+      })
+      setSuccess(next === 'CONFIRMADA'
+        ? `Tu asistencia a “${item.nombre}” quedó confirmada.`
+        : `Tu inscripción a “${item.nombre}” quedó cancelada.`)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'No fue posible actualizar tu inscripción.')
+    } finally {
+      setBusyId('')
+    }
+  }
 
   return (
     <section className="page-stack legacy-page-stack socio-activities">
@@ -71,6 +132,7 @@ export function SocioActivitiesPage() {
       </header>
 
       {error && <div className="notice error">{error}</div>}
+      {success && <div className="notice socios-success">{success}</div>}
 
       {loading ? (
         <div className="screen-message">Cargando actividades…</div>
@@ -92,7 +154,7 @@ export function SocioActivitiesPage() {
                 <span className="status-badge success">{activeItems.length}</span>
               </div>
               <div className="socio-activity-grid">
-                {activeItems.map((item) => <ActivityCard key={item.id} item={item} />)}
+                {activeItems.map((item) => <ActivityCard key={item.id} item={item} registration={registrationByActivity.get(item.id)} busy={busyId === item.id} onChange={changeRegistration} />)}
               </div>
             </section>
           )}
@@ -107,20 +169,20 @@ export function SocioActivitiesPage() {
                 <span className="status-badge neutral">{plannedItems.length}</span>
               </div>
               <div className="socio-activity-grid">
-                {plannedItems.map((item) => <ActivityCard key={item.id} item={item} />)}
+                {plannedItems.map((item) => <ActivityCard key={item.id} item={item} registration={registrationByActivity.get(item.id)} busy={busyId === item.id} onChange={changeRegistration} />)}
               </div>
             </section>
           )}
 
           <article className="panel legacy-panel socio-activity-next">
             <div>
-              <p className="legacy-kicker">Siguiente etapa</p>
-              <h3>Inscripciones desde el portal</h3>
+              <p className="legacy-kicker">Inscripciones</p>
+              <h3>Confirmá tu asistencia desde el portal</h3>
               <p className="muted">
-                La agenda ya queda disponible para consulta. El próximo paso será habilitar inscripción y confirmación de asistencia cuando corresponda a cada actividad.
+                Podés confirmar o cancelar tu inscripción mientras la actividad se encuentre activa o planificada. El equipo organizador verá el estado actualizado desde Administración.
               </p>
             </div>
-            <span className="status-badge neutral">En preparación</span>
+            <span className="status-badge success">Disponible</span>
           </article>
         </>
       )}
@@ -128,7 +190,19 @@ export function SocioActivitiesPage() {
   )
 }
 
-function ActivityCard({ item }: { item: Actividad }) {
+function ActivityCard({
+  item,
+  registration,
+  busy,
+  onChange,
+}: {
+  item: Actividad
+  registration?: ActividadInscripcion
+  busy: boolean
+  onChange: (item: Actividad, next: 'CONFIRMADA' | 'CANCELADA') => Promise<void>
+}) {
+  const confirmed = registration?.estado === 'CONFIRMADA'
+
   return (
     <article className="panel legacy-panel socio-activity-card">
       <div className="socio-activity-card-top">
@@ -144,6 +218,23 @@ function ActivityCard({ item }: { item: Actividad }) {
       <p className="muted socio-activity-description">
         {item.descripcion || 'Más información será comunicada por el Centro.'}
       </p>
+      <div className="socio-activity-registration">
+        {confirmed ? (
+          <>
+            <span className="status-badge success">Asistencia confirmada</span>
+            <button className="button secondary inline-button" type="button" disabled={busy} onClick={() => void onChange(item, 'CANCELADA')}>
+              {busy ? 'Actualizando…' : 'Cancelar inscripción'}
+            </button>
+          </>
+        ) : (
+          <>
+            {registration?.estado === 'CANCELADA' && <span className="status-badge neutral">Inscripción cancelada</span>}
+            <button className="button primary inline-button" type="button" disabled={busy} onClick={() => void onChange(item, 'CONFIRMADA')}>
+              {busy ? 'Confirmando…' : 'Confirmar asistencia'}
+            </button>
+          </>
+        )}
+      </div>
     </article>
   )
 }

@@ -4,6 +4,7 @@ import {
   getDocs,
   query,
   runTransaction,
+  setDoc,
   serverTimestamp,
   writeBatch,
   type DocumentData,
@@ -17,6 +18,7 @@ export type ActividadTipo = 'RETIRO' | 'SAN_JUAN' | 'CLUB_DAMAS' | 'ACADEMIA' | 
 export type ActividadEstado = 'PLANIFICADA' | 'ACTIVA' | 'CERRADA' | 'CANCELADA'
 export type MovimientoActividadTipo = 'INGRESO' | 'EGRESO'
 export type MovimientoActividadEstado = 'REGISTRADO' | 'ANULADO'
+export type ActividadInscripcionEstado = 'CONFIRMADA' | 'CANCELADA'
 
 export interface ActividadActor {
   uid: string
@@ -65,6 +67,18 @@ export interface MovimientoActividad {
   updatedAt?: Timestamp
 }
 
+export interface ActividadInscripcion {
+  id: string
+  actividadId: string
+  actividadNombre: string
+  socioId: string
+  uid: string
+  socioNombre: string
+  estado: ActividadInscripcionEstado
+  createdAt?: Timestamp
+  updatedAt?: Timestamp
+}
+
 export interface NuevaActividad {
   nombre: string
   tipo: ActividadTipo
@@ -88,6 +102,7 @@ export interface NuevoMovimientoActividad {
 export interface ActividadesSnapshot {
   actividades: Actividad[]
   movimientos: MovimientoActividad[]
+  inscripciones: ActividadInscripcion[]
 }
 
 function requireDb() {
@@ -170,6 +185,21 @@ function mapMovimiento(snapshot: QueryDocumentSnapshot<DocumentData>): Movimient
   }
 }
 
+function mapInscripcion(snapshot: QueryDocumentSnapshot<DocumentData>): ActividadInscripcion {
+  const data = snapshot.data()
+  return {
+    id: snapshot.id,
+    actividadId: asString(data.actividadId),
+    actividadNombre: asString(data.actividadNombre) || 'Actividad',
+    socioId: asString(data.socioId),
+    uid: asString(data.uid),
+    socioNombre: asString(data.socioNombre) || 'Socio',
+    estado: data.estado === 'CANCELADA' ? 'CANCELADA' : 'CONFIRMADA',
+    createdAt: data.createdAt as Timestamp | undefined,
+    updatedAt: data.updatedAt as Timestamp | undefined,
+  }
+}
+
 function validateDate(value: string, label: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`Indicá una ${label} válida.`)
 }
@@ -207,11 +237,53 @@ export async function loadSocioActividades(): Promise<Actividad[]> {
     .sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio) || a.nombre.localeCompare(b.nombre, 'es'))
 }
 
+export async function loadSocioActivityRegistrations(socioId: string): Promise<ActividadInscripcion[]> {
+  const database = requireDb()
+  const snapshot = await getDocs(
+    query(
+      collection(database, 'actividad_inscripciones'),
+      where('socioId', '==', socioId),
+    ),
+  )
+
+  return snapshot.docs
+    .map(mapInscripcion)
+    .sort((a, b) => a.actividadNombre.localeCompare(b.actividadNombre, 'es'))
+}
+
+export async function setSocioActivityRegistration(
+  actividad: Actividad,
+  socio: { socioId: string; uid: string; nombre: string },
+  estado: ActividadInscripcionEstado,
+) {
+  if (actividad.estado !== 'PLANIFICADA' && actividad.estado !== 'ACTIVA') {
+    throw new Error('La actividad ya no admite confirmaciones.')
+  }
+
+  const database = requireDb()
+  const id = `${actividad.id}__${socio.socioId}`
+  const ref = doc(database, 'actividad_inscripciones', id)
+
+  await setDoc(ref, {
+    actividadId: actividad.id,
+    actividadNombre: actividad.nombre,
+    socioId: socio.socioId,
+    uid: socio.uid,
+    socioNombre: socio.nombre.trim() || 'Socio',
+    estado,
+    updatedAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+  }, { merge: true })
+
+  return id
+}
+
 export async function loadActividades(): Promise<ActividadesSnapshot> {
   const database = requireDb()
-  const [actividadesSnapshot, movimientosSnapshot] = await Promise.all([
+  const [actividadesSnapshot, movimientosSnapshot, inscripcionesSnapshot] = await Promise.all([
     getDocs(collection(database, 'actividades')),
     getDocs(collection(database, 'movimientos_actividad')),
+    getDocs(collection(database, 'actividad_inscripciones')),
   ])
 
   return {
@@ -221,6 +293,9 @@ export async function loadActividades(): Promise<ActividadesSnapshot> {
     movimientos: movimientosSnapshot.docs
       .map(mapMovimiento)
       .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id)),
+    inscripciones: inscripcionesSnapshot.docs
+      .map(mapInscripcion)
+      .sort((a, b) => a.socioNombre.localeCompare(b.socioNombre, 'es')),
   }
 }
 

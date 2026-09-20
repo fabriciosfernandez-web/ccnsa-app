@@ -189,6 +189,40 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /actividad_inscripciones/{inscripcionId} {
+      allow read: if isStaff()
+        || (isSocio()
+          && resource.data.socioId == currentSocioId()
+          && resource.data.uid == request.auth.uid);
+
+      allow create: if isSocio()
+        && request.resource.data.socioId == currentSocioId()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.actividadId is string
+        && request.resource.data.actividadNombre is string
+        && request.resource.data.socioNombre is string
+        && request.resource.data.estado in ['CONFIRMADA', 'CANCELADA']
+        && get(/databases/$(database)/documents/actividades/$(request.resource.data.actividadId)).data.estado in ['PLANIFICADA', 'ACTIVA'];
+
+      allow update: if isSocio()
+        && resource.data.socioId == currentSocioId()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.socioId == resource.data.socioId
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.actividadId == resource.data.actividadId
+        && request.resource.data.actividadNombre == resource.data.actividadNombre
+        && request.resource.data.socioNombre == resource.data.socioNombre
+        && request.resource.data.estado in ['CONFIRMADA', 'CANCELADA']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estado',
+          'updatedAt',
+          'createdAt'
+        ])
+        && get(/databases/$(database)/documents/actividades/$(resource.data.actividadId)).data.estado in ['PLANIFICADA', 'ACTIVA'];
+
+      allow delete: if false;
+    }
+
     match /configuracion/{configId} {
       allow read: if isStaff();
       allow create, update, delete: if isAdmin();

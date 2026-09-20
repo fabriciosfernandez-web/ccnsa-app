@@ -74,7 +74,7 @@ export function AdminActividadesPage() {
   const { user, profile } = useAuth()
   const today = useMemo(localIsoDate, [])
   const canWrite = profile?.role === 'ADMIN' || profile?.role === 'TESORERIA'
-  const [snapshot, setSnapshot] = useState<ActividadesSnapshot>({ actividades: [], movimientos: [] })
+  const [snapshot, setSnapshot] = useState<ActividadesSnapshot>({ actividades: [], movimientos: [], inscripciones: [] })
   const [selectedId, setSelectedId] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -123,6 +123,16 @@ export function AdminActividadesPage() {
   const selectedMovements = useMemo(
     () => snapshot.movimientos.filter((item) => item.actividadId === selectedId),
     [snapshot.movimientos, selectedId],
+  )
+
+  const selectedRegistrations = useMemo(
+    () => snapshot.inscripciones.filter((item) => item.actividadId === selectedId),
+    [snapshot.inscripciones, selectedId],
+  )
+
+  const confirmedRegistrations = useMemo(
+    () => selectedRegistrations.filter((item) => item.estado === 'CONFIRMADA'),
+    [selectedRegistrations],
   )
 
   const filteredActivities = useMemo(() => {
@@ -370,6 +380,32 @@ export function AdminActividadesPage() {
                 <article className="metric-card legacy-metric-card"><span>Egresos</span><strong>{money(selectedTotals.egresos)}</strong><small>Movimientos vigentes de salida.</small></article>
                 <article className="metric-card legacy-metric-card"><span>Resultado</span><strong>{money(selectedTotals.resultado)}</strong><small>{selected.presupuesto !== undefined ? `Presupuesto referencial ${money(selected.presupuesto)}.` : 'Sin presupuesto referencial cargado.'}</small></article>
               </div>
+
+              <article className="panel legacy-panel activities-ledger-panel">
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="legacy-kicker">Inscripciones</p>
+                    <h3>Asistencias confirmadas</h3>
+                    <p className="muted">Confirmaciones realizadas por los socios desde su portal.</p>
+                  </div>
+                  <span className="status-badge success">{confirmedRegistrations.length}</span>
+                </div>
+                {selectedRegistrations.length === 0 ? (
+                  <div className="activities-empty-state"><strong>Sin inscripciones todavía</strong><span>Las confirmaciones aparecerán aquí automáticamente.</span></div>
+                ) : (
+                  <div className="legacy-table-wrap activities-table-wrap">
+                    <table className="legacy-table activities-table">
+                      <thead><tr><th>Socio</th><th>Estado</th></tr></thead>
+                      <tbody>{selectedRegistrations.map((item) => (
+                        <tr key={item.id}>
+                          <td><strong>{item.socioNombre}</strong></td>
+                          <td><span className={`status-badge ${item.estado === 'CONFIRMADA' ? 'success' : 'neutral'}`}>{item.estado === 'CONFIRMADA' ? 'Confirmada' : 'Cancelada'}</span></td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                )}
+              </article>
 
               <article className="panel legacy-panel activities-ledger-panel">
                 <div className="panel-heading-row">

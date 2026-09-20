@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase-admin/app'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { getMessaging } from 'firebase-admin/messaging'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
+import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
 initializeApp()
 
@@ -149,5 +150,268 @@ export const deliverNotificationPush = onDocumentCreated(
       failureCount: result.failureCount,
       staleSubscriptionsRemoved: cleanup.length,
     })
+  },
+)
+
+
+type ActivityRegistrationAction = {
+  actividadId?: unknown
+  action?: unknown
+  acompanantes?: unknown
+}
+
+function numberValue(value: unknown, fallback = 0) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function integerValue(value: unknown, fallback = 0) {
+  return Math.trunc(numberValue(value, fallback))
+}
+
+function timestampMillis(value: unknown) {
+  if (value && typeof value === 'object' && 'toMillis' in value && typeof (value as { toMillis: () => number }).toMillis === 'function') {
+    return (value as { toMillis: () => number }).toMillis()
+  }
+  return Number.MAX_SAFE_INTEGER
+}
+
+async function promoteActivityWaitlist(actividadId: string) {
+  const activityRef = database.collection('actividades').doc(actividadId)
+  const waitingSnapshot = await database
+    .collection('actividad_inscripciones')
+    .where('actividadId', '==', actividadId)
+    .get()
+
+  const waiting = waitingSnapshot.docs
+    .filter((item) => item.data().estado === 'ESPERA')
+    .sort((a, b) => timestampMillis(a.data().createdAt) - timestampMillis(b.data().createdAt))
+
+  for (const waitingDoc of waiting) {
+    const promoted = await database.runTransaction(async (transaction) => {
+      const [activitySnapshot, registrationSnapshot] = await Promise.all([
+        transaction.get(activityRef),
+        transaction.get(waitingDoc.ref),
+      ])
+
+      if (!activitySnapshot.exists || !registrationSnapshot.exists) return false
+      const activity = activitySnapshot.data() ?? {}
+      const registration = registrationSnapshot.data() ?? {}
+      if (registration.estado !== 'ESPERA') return false
+
+      const capacity = Math.max(0, integerValue(activity.cupo))
+      const occupied = Math.max(0, integerValue(activity.cuposOcupados))
+      const companions = Math.max(0, integerValue(registration.acompanantes))
+      const seats = 1 + companions
+
+      if (capacity > 0 && occupied + seats > capacity) return false
+
+      transaction.update(activityRef, {
+        cuposOcupados: occupied + seats,
+        updatedAt: FieldValue.serverTimestamp(),
+      })
+      transaction.update(waitingDoc.ref, {
+        estado: 'CONFIRMADA',
+        updatedAt: FieldValue.serverTimestamp(),
+        promotedAt: FieldValue.serverTimestamp(),
+      })
+      return true
+    })
+
+    if (!promoted) break
+
+    const promotedSnapshot = await waitingDoc.ref.get()
+    const promotedData = promotedSnapshot.data() ?? {}
+    const socioId = stringValue(promotedData.socioId)
+    if (socioId) {
+      await database.collection('notifications').add({
+        socioId,
+        kind: 'GENERAL_NOTICE',
+        title: 'Cupo disponible',
+        message: `Tu inscripción a “${stringValue(promotedData.actividadNombre, 'la actividad')}” quedó confirmada.`,
+        status: 'UNREAD',
+        actionUrl: '/socio/actividades',
+        sourceType: 'activity_waitlist',
+        sourceId: waitingDoc.id,
+        deduplicationKey: `activity-waitlist:${waitingDoc.id}:${Date.now()}`,
+        createdByUid: 'system',
+        createdAt: FieldValue.serverTimestamp(),
+      })
+    }
+  }
+}
+
+export const registerForActivity = onCall(
+  {
+    minInstances: 0,
+    maxInstances: 1,
+    memory: '256MiB',
+    cpu: 'gcf_gen1',
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'Iniciá sesión para inscribirte.')
+    }
+
+    const data = (request.data ?? {}) as ActivityRegistrationAction
+    const actividadId = stringValue(data.actividadId)
+    const action = stringValue(data.action)
+    const requestedCompanions = Math.max(0, integerValue(data.acompanantes))
+
+    if (!actividadId) throw new HttpsError('invalid-argument', 'La actividad no está identificada.')
+    if (action !== 'CONFIRM' && action !== 'CANCEL') {
+      throw new HttpsError('invalid-argument', 'La acción solicitada no es válida.')
+    }
+
+    const uid = request.auth.uid
+    const userRef = database.collection('users').doc(uid)
+    const userSnapshot = await userRef.get()
+    const user = userSnapshot.data() ?? {}
+    const socioId = stringValue(user.socioId)
+
+    if (!userSnapshot.exists || user.active !== true || user.role !== 'SOCIO' || !socioId) {
+      throw new HttpsError('permission-denied', 'Tu usuario no está habilitado como socio.')
+    }
+
+    const socioSnapshot = await database.collection('socios').doc(socioId).get()
+    const socio = socioSnapshot.data() ?? {}
+    const socioNombre = stringValue(socio.nombre, stringValue(user.displayName, 'Socio'))
+
+    const activityRef = database.collection('actividades').doc(actividadId)
+    const registrationRef = database.collection('actividad_inscripciones').doc(`${actividadId}__${socioId}`)
+
+    const result = await database.runTransaction(async (transaction) => {
+      const [activitySnapshot, registrationSnapshot] = await Promise.all([
+        transaction.get(activityRef),
+        transaction.get(registrationRef),
+      ])
+
+      if (!activitySnapshot.exists) {
+        throw new HttpsError('not-found', 'La actividad ya no existe.')
+      }
+
+      const activity = activitySnapshot.data() ?? {}
+      const activityStatus = stringValue(activity.estado)
+      if (activityStatus !== 'PLANIFICADA' && activityStatus !== 'ACTIVA') {
+        throw new HttpsError('failed-precondition', 'La actividad ya no admite inscripciones.')
+      }
+
+      const previous = registrationSnapshot.exists ? registrationSnapshot.data() ?? {} : {}
+      const previousState = stringValue(previous.estado)
+      const previousCompanions = Math.max(0, integerValue(previous.acompanantes))
+      const previousSeats = previousState === 'CONFIRMADA' ? 1 + previousCompanions : 0
+      const occupied = Math.max(0, integerValue(activity.cuposOcupados))
+      const capacity = Math.max(0, integerValue(activity.cupo))
+      const allowsCompanions = activity.permiteAcompanantes === true
+      const maxCompanions = allowsCompanions ? Math.max(0, integerValue(activity.maxAcompanantes)) : 0
+      const companions = allowsCompanions ? requestedCompanions : 0
+      const cost = Math.max(0, numberValue(activity.costoInscripcion))
+
+      if (companions > maxCompanions) {
+        throw new HttpsError('invalid-argument', `Esta actividad admite hasta ${maxCompanions} acompañante(s).`)
+      }
+
+      if (action === 'CANCEL') {
+        if (!registrationSnapshot.exists || previousState === 'CANCELADA') {
+          throw new HttpsError('failed-precondition', 'No tenés una inscripción activa para cancelar.')
+        }
+
+        const nextOccupied = Math.max(0, occupied - previousSeats)
+        if (previousSeats > 0) {
+          transaction.update(activityRef, {
+            cuposOcupados: nextOccupied,
+            updatedAt: FieldValue.serverTimestamp(),
+          })
+        }
+        transaction.update(registrationRef, {
+          estado: 'CANCELADA',
+          updatedAt: FieldValue.serverTimestamp(),
+        })
+
+        return {
+          id: registrationRef.id,
+          estado: 'CANCELADA',
+          acompanantes: previousCompanions,
+          estadoPago: stringValue(previous.estadoPago, cost > 0 ? 'PENDIENTE' : 'NO_APLICA'),
+          asistencia: stringValue(previous.asistencia, 'PENDIENTE'),
+          importeInscripcion: Math.max(0, numberValue(previous.importeInscripcion, cost)),
+          cuposOcupados: nextOccupied,
+          freedSeats: previousSeats,
+        }
+      }
+
+      const seats = 1 + companions
+      let nextState = 'CONFIRMADA'
+      let nextOccupied = occupied
+
+      if (previousState === 'CONFIRMADA') {
+        const delta = seats - previousSeats
+        if (capacity > 0 && occupied + delta > capacity) {
+          throw new HttpsError('resource-exhausted', 'No hay cupos suficientes para agregar acompañantes.')
+        }
+        nextOccupied = Math.max(0, occupied + delta)
+      } else if (capacity > 0 && occupied + seats > capacity) {
+        nextState = 'ESPERA'
+      } else {
+        nextOccupied = occupied + seats
+      }
+
+      const paymentStatus = stringValue(previous.estadoPago, cost > 0 ? 'PENDIENTE' : 'NO_APLICA')
+      const attendanceStatus = stringValue(previous.asistencia, 'PENDIENTE')
+
+      transaction.set(registrationRef, {
+        actividadId,
+        actividadNombre: stringValue(activity.nombre, 'Actividad'),
+        socioId,
+        uid,
+        socioNombre,
+        estado: nextState,
+        acompanantes: companions,
+        estadoPago: paymentStatus,
+        asistencia: attendanceStatus,
+        importeInscripcion: cost,
+        createdAt: registrationSnapshot.exists ? previous.createdAt ?? FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true })
+
+      if (nextOccupied !== occupied) {
+        transaction.update(activityRef, {
+          cuposOcupados: nextOccupied,
+          updatedAt: FieldValue.serverTimestamp(),
+        })
+      }
+
+      return {
+        id: registrationRef.id,
+        estado: nextState,
+        acompanantes: companions,
+        estadoPago: paymentStatus,
+        asistencia: attendanceStatus,
+        importeInscripcion: cost,
+        cuposOcupados: nextOccupied,
+        freedSeats: 0,
+      }
+    })
+
+    await database.collection('audit_log').add({
+      actorUid: uid,
+      actorNombre: socioNombre,
+      actorRol: 'SOCIO',
+      action: action === 'CANCEL' ? 'ACTIVIDAD_REGISTRATION_CANCELLED' : 'ACTIVIDAD_REGISTRATION_REQUESTED',
+      entity: 'actividad_inscripciones',
+      entityId: result.id,
+      actividadId,
+      estado: result.estado,
+      createdAt: FieldValue.serverTimestamp(),
+    })
+
+    if (result.freedSeats > 0) {
+      await promoteActivityWaitlist(actividadId)
+      const refreshed = await activityRef.get()
+      result.cuposOcupados = Math.max(0, integerValue(refreshed.data()?.cuposOcupados))
+    }
+
+    return result
   },
 )

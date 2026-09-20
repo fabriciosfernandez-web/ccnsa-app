@@ -951,8 +951,11 @@ table tbody tr:hover {
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
+    padding-right: 0;
     padding-bottom: 18px;
-    scrollbar-gutter: stable;
+    scrollbar-width: none !important;
+    scrollbar-color: transparent transparent;
+    -ms-overflow-style: none;
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
   }
@@ -995,14 +998,30 @@ table tbody tr:hover {
 
 
 @media (max-width: 720px) {
+  .sidebar,
+  .legacy-sidebar,
   .nav-list {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    scrollbar-width: none !important;
+    scrollbar-color: transparent transparent !important;
+    -ms-overflow-style: none !important;
   }
 
+  .sidebar::-webkit-scrollbar,
+  .legacy-sidebar::-webkit-scrollbar,
   .nav-list::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+
+  .sidebar::-webkit-scrollbar-track,
+  .legacy-sidebar::-webkit-scrollbar-track,
+  .nav-list::-webkit-scrollbar-track,
+  .sidebar::-webkit-scrollbar-thumb,
+  .legacy-sidebar::-webkit-scrollbar-thumb,
+  .nav-list::-webkit-scrollbar-thumb {
+    background: transparent !important;
+    border: 0 !important;
   }
 }

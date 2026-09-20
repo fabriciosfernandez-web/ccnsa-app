@@ -85,32 +85,41 @@ export function SocioActivitiesPage() {
     [registrations],
   )
 
-  async function changeRegistration(item: Actividad, next: 'CONFIRMADA' | 'CANCELADA') {
+  async function changeRegistration(item: Actividad, next: 'CONFIRMADA' | 'CANCELADA', acompanantes = 0) {
     if (!user || !profile?.socioId || busyId) return
     setBusyId(item.id)
     setError('')
     setSuccess('')
     try {
-      const id = await setSocioActivityRegistration(item, {
+      const result = await setSocioActivityRegistration(item, {
         socioId: profile.socioId,
         uid: user.uid,
         nombre: profile.displayName,
-      }, next)
+      }, next, acompanantes)
       setRegistrations((current) => {
         const remaining = current.filter((entry) => entry.actividadId !== item.id)
         return [...remaining, {
-          id,
+          id: result.id,
           actividadId: item.id,
           actividadNombre: item.nombre,
           socioId: profile.socioId!,
           uid: user.uid,
           socioNombre: profile.displayName,
-          estado: next,
+          estado: result.estado,
+          acompanantes: result.acompanantes,
+          estadoPago: result.estadoPago,
+          asistencia: result.asistencia,
+          importeInscripcion: result.importeInscripcion,
         }]
       })
-      setSuccess(next === 'CONFIRMADA'
-        ? `Tu asistencia a “${item.nombre}” quedó confirmada.`
-        : `Tu inscripción a “${item.nombre}” quedó cancelada.`)
+      setItems((current) => current.map((activity) => activity.id === item.id
+        ? { ...activity, cuposOcupados: result.cuposOcupados }
+        : activity))
+      setSuccess(next === 'CANCELADA'
+        ? `Tu inscripción a “${item.nombre}” quedó cancelada.`
+        : result.estado === 'ESPERA'
+          ? `No quedan cupos disponibles. Quedaste en lista de espera para “${item.nombre}”.`
+          : `Tu asistencia a “${item.nombre}” quedó confirmada.`)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'No fue posible actualizar tu inscripción.')
     } finally {
@@ -199,9 +208,12 @@ function ActivityCard({
   item: Actividad
   registration?: ActividadInscripcion
   busy: boolean
-  onChange: (item: Actividad, next: 'CONFIRMADA' | 'CANCELADA') => Promise<void>
+  onChange: (item: Actividad, next: 'CONFIRMADA' | 'CANCELADA', acompanantes?: number) => Promise<void>
 }) {
   const confirmed = registration?.estado === 'CONFIRMADA'
+  const waiting = registration?.estado === 'ESPERA'
+  const [companions, setCompanions] = useState(registration?.acompanantes ?? 0)
+  const available = item.cupo ? Math.max(0, item.cupo - item.cuposOcupados) : undefined
 
   return (
     <article className="panel legacy-panel socio-activity-card">
@@ -218,19 +230,50 @@ function ActivityCard({
       <p className="muted socio-activity-description">
         {item.descripcion || 'Más información será comunicada por el Centro.'}
       </p>
+
+      <div className="socio-activity-meta">
+        <span>{item.cupo ? `${available} de ${item.cupo} lugar(es) disponibles` : 'Sin límite de cupos'}</span>
+        <span>{item.costoInscripcion > 0 ? `Inscripción: Gs. ${Math.round(item.costoInscripcion).toLocaleString('es-PY')}` : 'Sin costo de inscripción'}</span>
+        {item.permiteAcompanantes && <span>Hasta {item.maxAcompanantes} acompañante(s)</span>}
+      </div>
+
+      {!confirmed && !waiting && item.permiteAcompanantes && item.maxAcompanantes > 0 && (
+        <label className="socio-activity-companions">
+          Acompañantes
+          <select value={companions} onChange={(event) => setCompanions(Number(event.target.value))} disabled={busy}>
+            {Array.from({ length: item.maxAcompanantes + 1 }, (_, index) => (
+              <option key={index} value={index}>{index}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <div className="socio-activity-registration">
         {confirmed ? (
           <>
             <span className="status-badge success">Asistencia confirmada</span>
-            <button className="button secondary inline-button" type="button" disabled={busy} onClick={() => void onChange(item, 'CANCELADA')}>
+            {registration && registration.acompanantes > 0 && <span className="status-badge neutral">+ {registration.acompanantes} acompañante(s)</span>}
+            {registration?.estadoPago === 'PENDIENTE' && <span className="status-badge neutral">Pago pendiente</span>}
+            {registration?.estadoPago === 'PAGADO' && <span className="status-badge success">Pagado</span>}
+            {registration?.asistencia === 'PRESENTE' && <span className="status-badge success">Presente</span>}
+            {registration?.asistencia === 'AUSENTE' && <span className="status-badge danger">Ausente</span>}
+            <button className="button secondary inline-button" type="button" disabled={busy} onClick={() => void onChange(item, 'CANCELADA', registration?.acompanantes ?? 0)}>
               {busy ? 'Actualizando…' : 'Cancelar inscripción'}
+            </button>
+          </>
+        ) : waiting ? (
+          <>
+            <span className="status-badge neutral">Lista de espera</span>
+            {registration && registration.acompanantes > 0 && <span className="status-badge neutral">+ {registration.acompanantes} acompañante(s)</span>}
+            <button className="button secondary inline-button" type="button" disabled={busy} onClick={() => void onChange(item, 'CANCELADA', registration?.acompanantes ?? 0)}>
+              {busy ? 'Actualizando…' : 'Salir de la lista de espera'}
             </button>
           </>
         ) : (
           <>
             {registration?.estado === 'CANCELADA' && <span className="status-badge neutral">Inscripción cancelada</span>}
-            <button className="button primary inline-button" type="button" disabled={busy} onClick={() => void onChange(item, 'CONFIRMADA')}>
-              {busy ? 'Confirmando…' : 'Confirmar asistencia'}
+            <button className="button primary inline-button" type="button" disabled={busy} onClick={() => void onChange(item, 'CONFIRMADA', companions)}>
+              {busy ? 'Confirmando…' : item.cupo && available === 0 ? 'Anotarme en lista de espera' : 'Confirmar asistencia'}
             </button>
           </>
         )}

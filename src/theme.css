@@ -946,19 +946,26 @@ table tbody tr:hover {
 
   .nav-list {
     min-height: 0;
-    flex: 1 1 auto;
+    height: 0;
+    flex: 1 1 0;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding-bottom: 12px;
+    padding-bottom: 18px;
+    scrollbar-gutter: stable;
+    touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
   }
 
   .sidebar-user {
+    position: relative;
+    z-index: 2;
     flex: 0 0 auto;
     margin-top: 0;
-    padding-top: 12px;
-    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--sidebar-bg-2) 96%, transparent) 18%);
+    padding: 12px 10px max(4px, env(safe-area-inset-bottom));
+    background: var(--sidebar-bg-2);
+    border-top: 1px solid var(--sidebar-border);
+    box-shadow: 0 -10px 22px rgba(5, 16, 24, 0.18);
   }
 
   .workspace-topbar {

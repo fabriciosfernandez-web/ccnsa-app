@@ -82,6 +82,23 @@ export function NotificationsPage() {
     [items],
   )
 
+  useEffect(() => {
+    if (!preferences?.push || !socioId || !user || Notification.permission !== 'granted') return
+    let active = true
+
+    async function revalidatePushDevice() {
+      try {
+        await registerPushDevice(socioId!, user!.uid)
+        if (active) setDevicePushEnabled(true)
+      } catch {
+        if (active) setDevicePushEnabled(false)
+      }
+    }
+
+    void revalidatePushDevice()
+    return () => { active = false }
+  }, [preferences?.push, socioId, user])
+
   async function markAsRead(notificationId: string) {
     if (!socioId) return
     try {

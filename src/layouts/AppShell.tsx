@@ -43,6 +43,7 @@ function routeMeta(pathname: string) {
   if (pathname.startsWith('/admin/migracion')) return { section: 'Herramientas DEV', title: 'Migración 2026' }
   if (pathname.startsWith('/admin/auditoria')) return { section: 'Control', title: 'Auditoría' }
   if (pathname.startsWith('/admin/reglas-cobro')) return { section: 'Configuración', title: 'Reglas especiales' }
+  if (pathname.startsWith('/admin/usuarios')) return { section: 'Configuración', title: 'Usuarios y accesos' }
   if (pathname.startsWith('/admin/cuotas')) return { section: 'Configuración', title: 'Tarifas y generación' }
   if (pathname.startsWith('/admin/actividades')) return { section: 'Gestión', title: 'Actividades' }
   if (pathname.startsWith('/admin/finanzas')) return { section: 'Gestión', title: 'Finanzas' }
@@ -173,6 +174,7 @@ export function AppShell() {
 
               <div className="nav-group">
                 <span className="nav-group-label">Configuración</span>
+                {profile?.role === 'ADMIN' && navItem('/admin/usuarios', 'Usuarios y accesos', 'users')}
                 {navItem('/admin/cuotas', 'Tarifas y generación', 'settings')}
                 {navItem('/admin/reglas-cobro', 'Reglas especiales', 'rules')}
               </div>

@@ -112,6 +112,13 @@ export function AdminDashboard() {
               <span className="dashboard-module-copy"><strong>Tarifas y configuración</strong><small>Tarifas, generación mensual, reglas especiales y excepciones.</small></span>
               <span className="dashboard-module-arrow" aria-hidden="true">›</span>
             </Link>
+            {profile?.role === 'ADMIN' && (
+              <Link className="dashboard-module-row" to="/admin/usuarios">
+                <span className="dashboard-module-icon" aria-hidden="true">U</span>
+                <span className="dashboard-module-copy"><strong>Usuarios y accesos</strong><small>Vinculación de cuentas, roles y habilitación de acceso al portal.</small></span>
+                <span className="dashboard-module-arrow" aria-hidden="true">›</span>
+              </Link>
+            )}
           </div>
         </article>
 

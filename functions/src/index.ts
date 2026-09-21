@@ -479,3 +479,197 @@ export const getPushRecipientStatus = onCall(
     }
   },
 )
+
+
+type UserAccessRole = 'SOCIO' | 'TESORERIA' | 'ADMIN' | 'CONSULTA'
+
+async function requireAdminCaller(uid: string) {
+  const snapshot = await database.collection('users').doc(uid).get()
+  const data = snapshot.data() ?? {}
+  if (!snapshot.exists || data.active !== true || data.role !== 'ADMIN') {
+    throw new HttpsError('permission-denied', 'Esta operación requiere rol ADMIN.')
+  }
+  return data
+}
+
+export const listUserAccessAccounts = onCall(
+  {
+    minInstances: 0,
+    maxInstances: 1,
+    memory: '256MiB',
+    cpu: 'gcf_gen1',
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'Iniciá sesión para administrar usuarios.')
+    }
+    await requireAdminCaller(request.auth.uid)
+
+    const authUsers = await getAuth().listUsers(1000)
+    const profileRefs = authUsers.users.map((userRecord) => database.collection('users').doc(userRecord.uid))
+    const profileSnapshots = profileRefs.length > 0 ? await database.getAll(...profileRefs) : []
+
+    const profileByUid = new Map(
+      profileSnapshots.map((snapshot) => [snapshot.id, snapshot.exists ? snapshot.data() ?? {} : null]),
+    )
+
+    const users = authUsers.users.map((userRecord) => {
+      const profile = profileByUid.get(userRecord.uid)
+      const role = profile ? stringValue(profile.role) : ''
+      const allowedRole: UserAccessRole | null = role === 'SOCIO'
+        || role === 'TESORERIA'
+        || role === 'ADMIN'
+        || role === 'CONSULTA'
+        ? role
+        : null
+
+      return {
+        uid: userRecord.uid,
+        email: userRecord.email ?? null,
+        displayName: stringValue(profile?.displayName, userRecord.displayName ?? userRecord.email ?? 'Usuario'),
+        role: allowedRole,
+        socioId: profile ? stringValue(profile.socioId) || null : null,
+        active: profile?.active === true,
+        linked: Boolean(profile),
+        authDisabled: userRecord.disabled === true,
+        providerIds: userRecord.providerData.map((item) => item.providerId),
+        createdAt: userRecord.metadata.creationTime ?? null,
+        lastSignInAt: userRecord.metadata.lastSignInTime ?? null,
+      }
+    })
+
+    users.sort((a, b) => a.displayName.localeCompare(b.displayName, 'es'))
+    return { users }
+  },
+)
+
+type UpdateUserAccessRequest = {
+  uid?: unknown
+  role?: unknown
+  socioId?: unknown
+  active?: unknown
+}
+
+export const updateUserAccess = onCall(
+  {
+    minInstances: 0,
+    maxInstances: 1,
+    memory: '256MiB',
+    cpu: 'gcf_gen1',
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'Iniciá sesión para administrar usuarios.')
+    }
+    await requireAdminCaller(request.auth.uid)
+
+    const input = (request.data ?? {}) as UpdateUserAccessRequest
+    const uid = stringValue(input.uid)
+    const role = stringValue(input.role) as UserAccessRole
+    const socioId = stringValue(input.socioId)
+    const active = input.active === true
+
+    if (!uid) throw new HttpsError('invalid-argument', 'El usuario no está identificado.')
+    if (!['SOCIO', 'TESORERIA', 'ADMIN', 'CONSULTA'].includes(role)) {
+      throw new HttpsError('invalid-argument', 'El rol seleccionado no es válido.')
+    }
+    if (role === 'SOCIO' && !socioId) {
+      throw new HttpsError('invalid-argument', 'Seleccioná el socio que corresponde a esta cuenta.')
+    }
+
+    if (uid === request.auth.uid && (!active || role !== 'ADMIN')) {
+      throw new HttpsError(
+        'failed-precondition',
+        'No podés desactivar tu propia cuenta ADMIN ni quitarte el rol de administrador.',
+      )
+    }
+
+    let authUser
+    try {
+      authUser = await getAuth().getUser(uid)
+    } catch {
+      throw new HttpsError('not-found', 'La cuenta ya no existe en Firebase Authentication.')
+    }
+
+    let socioNombre = ''
+    if (role === 'SOCIO') {
+      const socioSnapshot = await database.collection('socios').doc(socioId).get()
+      if (!socioSnapshot.exists) {
+        throw new HttpsError('not-found', 'El socio seleccionado no existe.')
+      }
+      const socio = socioSnapshot.data() ?? {}
+      socioNombre = stringValue(socio.nombre, authUser.displayName ?? authUser.email ?? 'Socio')
+
+      if (active && stringValue(socio.estado, 'ACTIVO') !== 'ACTIVO') {
+        throw new HttpsError('failed-precondition', 'No se puede activar el acceso de un socio inactivo.')
+      }
+
+      const duplicates = await database.collection('users').where('socioId', '==', socioId).get()
+      const otherActive = duplicates.docs.find((document) => (
+        document.id !== uid && document.data().active === true
+      ))
+      if (otherActive) {
+        throw new HttpsError('already-exists', 'Ese socio ya está vinculado a otra cuenta activa.')
+      }
+    }
+
+    const targetRef = database.collection('users').doc(uid)
+    const auditRef = database.collection('audit_log').doc()
+    const existingSnapshot = await targetRef.get()
+    const existing = existingSnapshot.data() ?? {}
+
+    const displayName = role === 'SOCIO'
+      ? socioNombre
+      : stringValue(existing.displayName, authUser.displayName ?? authUser.email ?? 'Usuario')
+
+    const payload: Record<string, unknown> = {
+      displayName,
+      email: authUser.email ?? null,
+      role,
+      active,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedByUid: request.auth.uid,
+    }
+
+    if (role === 'SOCIO') payload.socioId = socioId
+    else payload.socioId = FieldValue.delete()
+
+    if (!existingSnapshot.exists) {
+      payload.createdAt = FieldValue.serverTimestamp()
+    }
+
+    const batch = database.batch()
+    batch.set(targetRef, payload, { merge: true })
+    batch.set(auditRef, {
+      actorUid: request.auth.uid,
+      action: existingSnapshot.exists ? 'USER_ACCESS_UPDATED' : 'USER_ACCESS_CREATED',
+      entity: 'users',
+      entityId: uid,
+      targetEmail: authUser.email ?? null,
+      previousRole: stringValue(existing.role) || null,
+      role,
+      previousActive: existing.active === true,
+      active,
+      previousSocioId: stringValue(existing.socioId) || null,
+      socioId: role === 'SOCIO' ? socioId : null,
+      createdAt: FieldValue.serverTimestamp(),
+    })
+    await batch.commit()
+
+    return {
+      uid,
+      displayName,
+      email: authUser.email ?? null,
+      role,
+      socioId: role === 'SOCIO' ? socioId : null,
+      active,
+      linked: true,
+      authDisabled: authUser.disabled === true,
+      providerIds: authUser.providerData.map((item) => item.providerId),
+      createdAt: authUser.metadata.creationTime ?? null,
+      lastSignInAt: authUser.metadata.lastSignInTime ?? null,
+    }
+  },
+)

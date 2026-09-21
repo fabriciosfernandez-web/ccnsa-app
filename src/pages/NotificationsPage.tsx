@@ -186,7 +186,7 @@ export function NotificationsPage() {
             {loading
               ? 'Cargando tus avisos…'
               : unreadCount === 0
-                ? 'No tenés notificaciones pendientes.'
+                ? 'No tenés notificaciones sin leer.'
                 : `Tenés ${unreadCount} notificación${unreadCount === 1 ? '' : 'es'} sin leer.`}
           </p>
         </div>
@@ -197,7 +197,7 @@ export function NotificationsPage() {
             </button>
           )}
           <span className={`status-badge ${unreadCount > 0 ? 'danger' : 'success'}`}>
-            {loading ? 'Cargando' : unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día'}
+            {loading ? 'Cargando' : unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo leído'}
           </span>
         </div>
       </header>

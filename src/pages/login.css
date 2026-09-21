@@ -1,6 +1,7 @@
 .login-screen.legacy-login-screen {
   position: relative;
   isolation: isolate;
+  overflow: hidden;
   background: #0c1925;
 }
 
@@ -132,7 +133,7 @@
 
 @media (max-width: 560px) {
   .login-screen.legacy-login-screen::before {
-    background-position: 56% center;
+    background-position: 50% center;
     opacity: 0.29;
   }
 

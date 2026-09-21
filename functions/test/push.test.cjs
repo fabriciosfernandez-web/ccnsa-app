@@ -44,6 +44,7 @@ function setup({ preferences = { push: true }, subscriptions = [], sendError, re
   }
   const adapters = {
     'firebase-admin/app': { initializeApp() {} },
+    'firebase-admin/auth': { getAuth: () => ({}) },
     'firebase-admin/firestore': { getFirestore: () => database, FieldValue: { serverTimestamp: () => 1 } },
     'firebase-admin/messaging': { getMessaging: () => ({ async sendEachForMulticast(message) {
       sends.push(message)

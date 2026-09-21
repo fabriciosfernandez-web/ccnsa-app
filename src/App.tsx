@@ -12,6 +12,7 @@ import { AdminMigracionPreflightPage } from './pages/AdminMigracionPreflightPage
 import { AdminNotificationsDevPage } from './pages/AdminNotificationsDevPage'
 import { AdminReglasCobroPage } from './pages/AdminReglasCobroPage'
 import { AdminSociosPage } from './pages/AdminSociosPage'
+import { AdminUsersPage } from './pages/AdminUsersPage'
 import { ForbiddenPage } from './pages/ForbiddenPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
@@ -58,6 +59,7 @@ export default function App() {
               <Route path="/admin/reglas-cobro" element={<AdminReglasCobroPage />} />
               <Route path="/admin/auditoria" element={<AdminAuditoriaPage />} />
               <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                <Route path="/admin/usuarios" element={<AdminUsersPage />} />
                 <Route path="/admin/migracion" element={<AdminMigracionPage />} />
                 <Route path="/admin/migracion/preflight" element={<AdminMigracionPreflightPage />} />
                 <Route path="/admin/notificaciones" element={<AdminNotificationsDevPage />} />

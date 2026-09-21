@@ -244,7 +244,7 @@ export function AdminUsersPage() {
                   </span>
                 </label>
 
-                {selected.uid === user.uid && (
+                {selected.uid === user?.uid && (
                   <div className="notice warning">
                     Tu propia cuenta ADMIN está protegida: no podés desactivarla ni quitarle el rol Administrador desde esta pantalla.
                   </div>

@@ -49,11 +49,13 @@ jobs:
         if: steps.auth_dev_rules.outcome == 'success'
         run: npm --prefix functions test
 
-      - name: Deploy user-access Functions to DEV
+      - name: Deploy app callable Functions to DEV
         if: steps.auth_dev_rules.outcome == 'success'
-        run: npx --yes firebase-tools@latest deploy --only functions:listUserAccessAccounts,functions:updateUserAccess --project ccnsa-web-dev --non-interactive
+        continue-on-error: true
+        run: npx --yes firebase-tools@latest deploy --only functions:listUserAccessAccounts,functions:updateUserAccess,functions:registerForActivity --project ccnsa-web-dev --non-interactive
 
       # Event-driven push Functions are deployed separately once their Eventarc/PubSub IAM bindings are available.
+      # Firebase may return a non-zero status after successfully creating callable Functions if Artifact Registry cleanup policy cannot be configured.
       - name: Deploy preview to Firebase Hosting DEV
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:

@@ -45,14 +45,15 @@ jobs:
         if: steps.auth_dev_rules.outcome == 'success'
         run: npm --prefix functions install
 
-      - name: Deploy Functions to DEV
+      - name: Test Functions
         if: steps.auth_dev_rules.outcome == 'success'
-        continue-on-error: true
-        run: |
-          npm --prefix functions test
-          npx --yes firebase-tools@latest deploy --only functions --project ccnsa-web-dev --non-interactive
+        run: npm --prefix functions test
 
-      # Keep the visual preview available even if a backend IAM limitation blocks a Functions deploy.
+      - name: Deploy user-access Functions to DEV
+        if: steps.auth_dev_rules.outcome == 'success'
+        run: npx --yes firebase-tools@latest deploy --only functions:listUserAccessAccounts,functions:updateUserAccess --project ccnsa-web-dev --non-interactive
+
+      # Event-driven push Functions are deployed separately once their Eventarc/PubSub IAM bindings are available.
       - name: Deploy preview to Firebase Hosting DEV
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:

@@ -13,8 +13,13 @@ import { conciliarRegistrosPrevios } from '../data/reconciliacion'
 import './admin-socios.css'
 
 const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY')}`
-const today = new Date().toISOString().slice(0, 10)
-const currentPeriod = new Date().toISOString().slice(0, 7)
+
+function localIsoDate(date = new Date()) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
+const today = localIsoDate()
+const currentPeriod = today.slice(0, 7)
 
 function devErrorMessage(prefix: string, error: unknown) {
   if (import.meta.env.DEV || import.meta.env.MODE === 'development') {

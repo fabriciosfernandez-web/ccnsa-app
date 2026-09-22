@@ -26,6 +26,10 @@ function formatExactDate(value?: { toDate: () => Date }) {
   return new Intl.DateTimeFormat('es-PY', { dateStyle: 'medium', timeStyle: 'medium' }).format(value.toDate())
 }
 
+function localIsoDate(date = new Date()) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
 function eventDetail(item: AuditEvent) {
   if (item.concepto) return item.concepto
   if (item.entity === 'ingresos') return 'Ingreso financiero'
@@ -109,8 +113,8 @@ export function AdminAuditoriaPage() {
   )
 
   const todayCount = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
-    return events.filter((item) => item.createdAt?.toDate().toISOString().slice(0, 10) === today).length
+    const today = localIsoDate()
+    return events.filter((item) => item.createdAt && localIsoDate(item.createdAt.toDate()) === today).length
   }, [events])
 
   function exportCsv() {
@@ -140,7 +144,7 @@ export function AdminAuditoriaPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `ccnsa-auditoria-${new Date().toISOString().slice(0, 10)}.csv`
+    anchor.download = `ccnsa-auditoria-${localIsoDate()}.csv`
     anchor.click()
     URL.revokeObjectURL(url)
   }

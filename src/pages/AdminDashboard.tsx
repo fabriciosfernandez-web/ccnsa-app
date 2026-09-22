@@ -3,15 +3,22 @@ import { Link } from 'react-router-dom'
 import { useAuth, userProfileContextLabel } from '../auth/AuthProvider'
 import { AdminPageHeader } from '../components/AdminPageHeader'
 import { loadFinanzas, type FinanzasSnapshot } from '../data/finanzas'
+import { loadActividades, type ActividadesSnapshot } from '../data/actividades'
 import { listSocios, loadPortfolioSummary, type PortfolioSummary, type Socio } from '../data/socios'
 
-const currentPeriod = new Date().toISOString().slice(0, 7)
+function localPeriod() {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 7)
+}
+
+const currentPeriod = localPeriod()
 const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY')}`
 
 interface DashboardData {
   socios: Socio[]
   finanzas: FinanzasSnapshot
   cartera: PortfolioSummary
+  actividades: ActividadesSnapshot
 }
 
 export function AdminDashboard() {
@@ -21,9 +28,9 @@ export function AdminDashboard() {
 
   useEffect(() => {
     let active = true
-    void Promise.all([listSocios(), loadFinanzas(currentPeriod), loadPortfolioSummary()])
-      .then(([socios, finanzas, cartera]) => {
-        if (active) setData({ socios, finanzas, cartera })
+    void Promise.all([listSocios(), loadFinanzas(currentPeriod), loadPortfolioSummary(), loadActividades()])
+      .then(([socios, finanzas, cartera, actividades]) => {
+        if (active) setData({ socios, finanzas, cartera, actividades })
       })
       .catch((caught) => {
         if (active) setError(caught instanceof Error ? caught.message : 'No fue posible cargar el resumen institucional.')
@@ -34,6 +41,17 @@ export function AdminDashboard() {
   const sociosActivos = data?.socios.filter((item) => item.estado === 'ACTIVO').length ?? 0
   const finanzas = data?.finanzas.totales
   const cartera = data?.cartera
+  const actividades = data?.actividades
+  const actividadesActivas = actividades?.actividades.filter((item) => item.estado === 'ACTIVA').length ?? 0
+  const actividadesPlanificadas = actividades?.actividades.filter((item) => item.estado === 'PLANIFICADA').length ?? 0
+  const inscripcionesConfirmadas = actividades?.inscripciones.filter((item) => item.estado === 'CONFIRMADA').length ?? 0
+  const inscripcionesEspera = actividades?.inscripciones.filter((item) => item.estado === 'ESPERA').length ?? 0
+  const pagosActividadPendientes = actividades?.inscripciones.filter(
+    (item) => item.estado === 'CONFIRMADA' && item.estadoPago === 'PENDIENTE',
+  ).length ?? 0
+  const proximaActividad = actividades?.actividades
+    .filter((item) => item.estado === 'PLANIFICADA' || item.estado === 'ACTIVA')
+    .sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio))[0]
   const profileContext = userProfileContextLabel(profile)
 
   return (
@@ -126,12 +144,26 @@ export function AdminDashboard() {
           <article className="panel legacy-panel">
             <div className="panel-heading-row"><div><p className="legacy-kicker">Control</p><h3>Estado del sistema</h3></div></div>
             <div className="dashboard-status-list">
-              <div className="dashboard-status-item"><span>Finanzas</span><span className="status-badge success">Operativo</span></div>
-              <div className="dashboard-status-item"><span>Actividades</span><span className="status-badge success">Validado</span></div>
-              <div className="dashboard-status-item"><span>Portal del socio</span><span className="status-badge success">Validado</span></div>
-              <div className="dashboard-status-item"><span>Web Push</span><span className="status-badge success">Validado Android</span></div>
+              <div className="dashboard-status-item"><span>Finanzas</span><span className="status-badge success">Operativo DEV</span></div>
+              <div className="dashboard-status-item"><span>Actividades</span><span className="status-badge neutral">Prueba funcional pendiente</span></div>
+              <div className="dashboard-status-item"><span>Portal del socio</span><span className="status-badge success">Operativo DEV</span></div>
+              <div className="dashboard-status-item"><span>Usuarios y accesos</span><span className="status-badge success">Operativo DEV</span></div>
+              <div className="dashboard-status-item"><span>Web Push</span><span className="status-badge neutral">Pendiente de prueba</span></div>
               <div className="dashboard-status-item"><span>Auditoría central</span><span className="status-badge success">Activa</span></div>
               <div className="dashboard-status-item"><span>Migración productiva</span><span className="status-badge neutral">Pendiente</span></div>
+            </div>
+          </article>
+
+          <article className="panel legacy-panel">
+            <p className="legacy-kicker">Operación</p>
+            <h3>Actividades e inscripciones</h3>
+            <div className="dashboard-status-list">
+              <div className="dashboard-status-item"><span>Actividades activas</span><strong>{data ? actividadesActivas : '—'}</strong></div>
+              <div className="dashboard-status-item"><span>Planificadas</span><strong>{data ? actividadesPlanificadas : '—'}</strong></div>
+              <div className="dashboard-status-item"><span>Inscripciones confirmadas</span><strong>{data ? inscripcionesConfirmadas : '—'}</strong></div>
+              <div className="dashboard-status-item"><span>Lista de espera</span><span className={`status-badge ${inscripcionesEspera > 0 ? 'neutral' : 'success'}`}>{data ? inscripcionesEspera : '—'}</span></div>
+              <div className="dashboard-status-item"><span>Pagos de actividad pendientes</span><span className={`status-badge ${pagosActividadPendientes > 0 ? 'danger' : 'success'}`}>{data ? pagosActividadPendientes : '—'}</span></div>
+              <div className="dashboard-status-item"><span>Próxima actividad</span><strong>{proximaActividad ? `${proximaActividad.nombre} · ${proximaActividad.fechaInicio}` : '—'}</strong></div>
             </div>
           </article>
 

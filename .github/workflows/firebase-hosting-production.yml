@@ -2,6 +2,11 @@ name: Firebase Hosting PROD
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm_production:
+        description: 'Escribí CCNSA-PROD para habilitar el despliegue'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -31,6 +36,9 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Validate explicit production confirmation
+        run: test "${{ inputs.confirm_production }}" = "CCNSA-PROD"
 
       - name: Validate production target
         run: |

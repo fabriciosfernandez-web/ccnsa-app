@@ -58,8 +58,13 @@ jobs:
         continue-on-error: true
         run: npx --yes firebase-tools@latest deploy --only functions:listUserAccessAccounts,functions:updateUserAccess,functions:registerForActivity --project ccnsa-web-dev --non-interactive
 
+      - name: Set Functions artifact cleanup policy
+        if: steps.auth_dev_rules.outcome == 'success'
+        continue-on-error: true
+        run: npx --yes firebase-tools@latest functions:artifacts:setpolicy --days 1 --location us-central1 --project ccnsa-web-dev --force
+
       # Event-driven push Functions are deployed separately once their Eventarc/PubSub IAM bindings are available.
-      # Firebase may return a non-zero status after successfully creating callable Functions if Artifact Registry cleanup policy cannot be configured.
+      # Deployment artifacts older than one day are cleaned automatically to minimize Artifact Registry storage costs.
       - name: Deploy preview to Firebase Hosting DEV
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:

@@ -15,7 +15,13 @@ import {
 import './admin-cuotas.css'
 
 const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY')}`
-const currentPeriod = new Date().toISOString().slice(0, 7)
+
+function localPeriod() {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 7)
+}
+
+const currentPeriod = localPeriod()
 
 function devErrorMessage(prefix: string, error: unknown) {
   if (import.meta.env.DEV || import.meta.env.MODE === 'development') {

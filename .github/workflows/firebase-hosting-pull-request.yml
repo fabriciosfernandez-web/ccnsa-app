@@ -45,26 +45,9 @@ jobs:
         if: steps.auth_dev_rules.outcome == 'success'
         run: npx --yes firebase-tools@latest deploy --only firestore:rules --project ccnsa-web-dev --non-interactive
 
-      - name: Install Functions dependencies
-        if: steps.auth_dev_rules.outcome == 'success'
-        run: npm --prefix functions install
+      # Cloud Functions se prueban y despliegan desde firebase-functions-dev.yml
+      # únicamente cuando cambia el backend. El preview visual no redepliega contenedores.
 
-      - name: Test Functions
-        if: steps.auth_dev_rules.outcome == 'success'
-        run: npm --prefix functions test
-
-      - name: Deploy app callable Functions to DEV
-        if: steps.auth_dev_rules.outcome == 'success'
-        continue-on-error: true
-        run: npx --yes firebase-tools@latest deploy --only functions:listUserAccessAccounts,functions:updateUserAccess,functions:registerForActivity --project ccnsa-web-dev --non-interactive
-
-      - name: Set Functions artifact cleanup policy
-        if: steps.auth_dev_rules.outcome == 'success'
-        continue-on-error: true
-        run: npx --yes firebase-tools@latest functions:artifacts:setpolicy --days 1 --location us-central1 --project ccnsa-web-dev --force
-
-      # Event-driven push Functions are deployed separately once their Eventarc/PubSub IAM bindings are available.
-      # Deployment artifacts older than one day are cleaned automatically to minimize Artifact Registry storage costs.
       - name: Deploy preview to Firebase Hosting DEV
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:

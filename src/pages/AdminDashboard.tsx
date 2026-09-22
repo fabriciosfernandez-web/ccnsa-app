@@ -59,7 +59,7 @@ export function AdminDashboard() {
       <AdminPageHeader
         eyebrow="Gestión institucional"
         title={profile?.role === 'CONSULTA' ? 'Panel de consulta' : 'Panel de gestión'}
-        description="Resumen ejecutivo de socios, cobranza, cartera y resultado financiero para el seguimiento institucional."
+        description="Resumen ejecutivo de socios, cobranza, cartera, actividades y alertas operativas para el seguimiento institucional."
         meta={(
           <>
             <span className="status-badge neutral">Periodo · {currentPeriod}</span>
@@ -127,7 +127,7 @@ export function AdminDashboard() {
             </Link>
             <Link className="dashboard-module-row" to="/admin/cuotas">
               <span className="dashboard-module-icon" aria-hidden="true">T</span>
-              <span className="dashboard-module-copy"><strong>Tarifas y configuración</strong><small>Tarifas, generación mensual, reglas especiales y excepciones.</small></span>
+              <span className="dashboard-module-copy"><strong>Tarifas y configuración</strong><small>Tarifas, generación mensual, reglas especiales, excepciones y conciliación masiva.</small></span>
               <span className="dashboard-module-arrow" aria-hidden="true">›</span>
             </Link>
             {profile?.role === 'ADMIN' && (
@@ -142,12 +142,13 @@ export function AdminDashboard() {
 
         <div className="dashboard-side-stack">
           <article className="panel legacy-panel">
-            <div className="panel-heading-row"><div><p className="legacy-kicker">Control</p><h3>Estado del sistema</h3></div></div>
+            <div className="panel-heading-row"><div><p className="legacy-kicker">Control</p><h3>Estado de módulos</h3></div></div>
             <div className="dashboard-status-list">
               <div className="dashboard-status-item"><span>Finanzas</span><span className="status-badge success">Operativo DEV</span></div>
-              <div className="dashboard-status-item"><span>Actividades</span><span className="status-badge neutral">Prueba funcional pendiente</span></div>
+              <div className="dashboard-status-item"><span>Actividades</span><span className="status-badge success">Operativo DEV</span></div>
               <div className="dashboard-status-item"><span>Portal del socio</span><span className="status-badge success">Operativo DEV</span></div>
               <div className="dashboard-status-item"><span>Usuarios y accesos</span><span className="status-badge success">Operativo DEV</span></div>
+              <div className="dashboard-status-item"><span>Conciliación masiva</span><span className="status-badge success">Disponible DEV</span></div>
               <div className="dashboard-status-item"><span>Web Push</span><span className="status-badge neutral">Pendiente de prueba</span></div>
               <div className="dashboard-status-item"><span>Auditoría central</span><span className="status-badge success">Activa</span></div>
               <div className="dashboard-status-item"><span>Migración productiva</span><span className="status-badge neutral">Pendiente</span></div>

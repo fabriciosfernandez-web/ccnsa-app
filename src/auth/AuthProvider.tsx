@@ -83,7 +83,7 @@ async function loadProfile(user: User): Promise<UserProfile | null> {
     role: data.role as UserRole,
     socioId: data.socioId ? String(data.socioId) : undefined,
     comites: comites.length > 0 ? comites : undefined,
-    active: data.active !== false,
+    active: data.active === true,
   }
 }
 

@@ -8,6 +8,10 @@ permissions:
   checks: write
   pull-requests: write
 
+concurrency:
+  group: firebase-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   build_and_preview:
     runs-on: ubuntu-latest

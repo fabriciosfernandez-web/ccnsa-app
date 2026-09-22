@@ -12,7 +12,8 @@ El proyecto se encuentra en desarrollo sobre Firebase DEV. La planilla `Lista de
 - Tarifas, generación y reglas especiales de cobro.
 - Finanzas: ingresos, egresos, balance y exportación.
 - Actividades con subcontabilidad vinculada al libro financiero.
-- Auditoría centralizada.
+- Auditoría centralizada y exportable.
+- Snapshot manual JSON de las colecciones operativas principales para control/contingencia en DEV (no reemplaza PITR ni backups administrados).
 - Portal del socio y estado de cuenta PDF institucional.
 - Notificaciones in-app persistidas en Firestore para pagos y nuevas obligaciones.
 - Herramientas de preflight y migración 2026, todavía sin ejecución productiva.

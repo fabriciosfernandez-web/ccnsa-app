@@ -31,6 +31,7 @@ interface MovimientoBase {
   origen: MovimientoOrigen
   actividadId?: string
   actividadNombre?: string
+  subcategoriaActividad?: string
   medioPago?: string
   referencia?: string
   estado: MovimientoEstado
@@ -145,6 +146,7 @@ function mapMovimientoBase(snapshot: QueryDocumentSnapshot<DocumentData>): Movim
     origen: movimientoOrigen(data),
     actividadId: asString(data.actividadId) || undefined,
     actividadNombre: asString(data.actividadNombre) || undefined,
+    subcategoriaActividad: asString(data.subcategoriaActividad) || undefined,
     medioPago: asString(data.medioPago) || undefined,
     referencia: asString(data.referencia) || undefined,
     estado: movimientoEstado(data),
@@ -407,6 +409,9 @@ export async function anularMovimientoFinanciero(
 
     const data = snapshot.data()
     if (movimientoEstado(data) === 'ANULADO') throw new Error('El movimiento ya se encuentra anulado.')
+    if (movimientoOrigen(data) === 'ACTIVIDAD') {
+      throw new Error('Los movimientos originados en Actividades deben anularse desde el módulo Actividades para mantener ambos registros sincronizados.')
+    }
 
     transaction.update(movementRef, {
       estado: 'ANULADO',

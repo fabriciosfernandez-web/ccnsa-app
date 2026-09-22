@@ -79,9 +79,12 @@ export function SocioDashboard() {
     [account],
   )
 
-  const deuda2025 = useMemo(
+  const deudaAnterior = useMemo(
     () => account?.obligaciones
-      .filter((item) => yearFromPeriod(item.periodo) === 2025)
+      .filter((item) => {
+        const year = yearFromPeriod(item.periodo)
+        return year !== undefined && year < currentYear
+      })
       .reduce((sum, item) => sum + item.saldoPendiente, 0) ?? 0,
     [account],
   )
@@ -167,9 +170,9 @@ export function SocioDashboard() {
                   <small>Cuotas y cargos vigentes del ejercicio.</small>
                 </article>
                 <article className="metric-card legacy-metric-card">
-                  <span>Deuda 2025</span>
-                  <strong>{money(deuda2025)}</strong>
-                  <small>Saldo anterior mostrado por separado.</small>
+                  <span>Deuda anterior</span>
+                  <strong>{money(deudaAnterior)}</strong>
+                  <small>Saldo pendiente de ejercicios anteriores.</small>
                 </article>
                 <article className="metric-card legacy-metric-card">
                   <span>Saldo a favor</span>
@@ -205,10 +208,10 @@ export function SocioDashboard() {
                         <div className="socio-account-amount"><strong>{money(item.saldoPendiente)}</strong><small>{item.estadoCalculado === 'EXENTA' ? 'exonerado' : 'pendiente'}</small></div>
                       </div>
                     ))}
-                    {deuda2025 > 0 && (
+                    {deudaAnterior > 0 && (
                       <div className="socio-account-row">
-                        <div><strong>Saldo anterior 2025</strong><small>Se mantiene separado del ejercicio {currentYear} para facilitar la conciliación.</small></div>
-                        <div className="socio-account-amount"><strong>{money(deuda2025)}</strong><small>pendiente</small></div>
+                        <div><strong>Saldo de ejercicios anteriores</strong><small>Se mantiene separado del ejercicio {currentYear} para facilitar la conciliación.</small></div>
+                        <div className="socio-account-amount"><strong>{money(deudaAnterior)}</strong><small>pendiente</small></div>
                       </div>
                     )}
                   </div>

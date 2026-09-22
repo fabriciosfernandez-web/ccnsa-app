@@ -1,0 +1,40 @@
+name: Firebase Functions DEV
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-functions-dev
+  cancel-in-progress: false
+
+jobs:
+  test_and_deploy_callables:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Authenticate Firebase DEV
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCNSA_WEB_DEV }}
+
+      - name: Install Functions dependencies
+        run: npm --prefix functions install
+
+      - name: Test Functions
+        run: npm --prefix functions test
+
+      - name: Deploy callable Functions to DEV
+        run: npx --yes firebase-tools@latest deploy --only functions:listUserAccessAccounts,functions:updateUserAccess,functions:registerForActivity --project ccnsa-web-dev --non-interactive
+        continue-on-error: true
+
+      - name: Set Functions artifact cleanup policy
+        run: npx --yes firebase-tools@latest functions:artifacts:setpolicy --days 1 --location us-central1 --project ccnsa-web-dev --force
+        continue-on-error: true

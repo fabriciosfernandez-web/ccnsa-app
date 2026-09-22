@@ -200,8 +200,19 @@ export function buildEstadoCuenta(
   pagos: Pago[],
   aplicaciones: AplicacionPago[],
 ): EstadoCuenta {
-  const aplicadoPorObligacion = sumBy(aplicaciones, (item) => item.obligacionId, (item) => item.importe)
-  const aplicadoPorPago = sumBy(aplicaciones, (item) => item.pagoId, (item) => item.importe)
+  const pagosVigentes = new Set(
+    pagos.filter((item) => item.estado !== 'ANULADO').map((item) => item.id),
+  )
+  const obligacionesVigentes = new Set(
+    obligaciones
+      .filter((item) => item.estado !== 'ANULADA' && item.estado !== 'EXENTA')
+      .map((item) => item.id),
+  )
+  const aplicacionesVigentes = aplicaciones.filter(
+    (item) => pagosVigentes.has(item.pagoId) && obligacionesVigentes.has(item.obligacionId),
+  )
+  const aplicadoPorObligacion = sumBy(aplicacionesVigentes, (item) => item.obligacionId, (item) => item.importe)
+  const aplicadoPorPago = sumBy(aplicacionesVigentes, (item) => item.pagoId, (item) => item.importe)
 
   const obligacionesCalculadas = obligaciones.map((item) => {
     const importeAplicado = Math.min(item.importe, Math.max(0, aplicadoPorObligacion.get(item.id) ?? 0))

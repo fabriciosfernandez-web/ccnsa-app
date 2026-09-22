@@ -45,6 +45,11 @@ jobs:
         if: steps.auth_dev_rules.outcome == 'success'
         run: npx --yes firebase-tools@latest deploy --only firestore:rules --project ccnsa-web-dev --non-interactive
 
+      - name: Ensure Functions artifact cleanup policy
+        if: steps.auth_dev_rules.outcome == 'success'
+        continue-on-error: true
+        run: npx --yes firebase-tools@latest functions:artifacts:setpolicy --days 1 --location us-central1 --project ccnsa-web-dev --force
+
       # Cloud Functions se prueban y despliegan desde firebase-functions-dev.yml
       # únicamente cuando cambia el backend. El preview visual no redepliega contenedores.
 

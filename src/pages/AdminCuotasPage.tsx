@@ -251,7 +251,7 @@ export function AdminCuotasPage() {
           </button>
           <small className="muted">Los saldos a favor existentes se aplican automáticamente al crear cada obligación.</small>
           <div className="cuotas-info-box">
-            En el plan Spark no usamos todavía tareas programadas de servidor. Esta ejecución controlada evita costos y permite revisar el resultado antes de automatizarla en una fase posterior.
+            La generación se mantiene manual y controlada para evitar ejecuciones automáticas innecesarias, contener costos y permitir revisar el resultado antes de automatizarla en una fase posterior.
           </div>
         </form>
       </div>

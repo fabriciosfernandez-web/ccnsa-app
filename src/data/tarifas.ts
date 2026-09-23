@@ -11,6 +11,7 @@ import {
   type Timestamp,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { resolveAuditActor, type AuditActorInput } from './auditActor'
 import { createObligacion, listSocios, type SocioCategoria } from './socios'
 import {
   aplicarExcepcion,
@@ -97,9 +98,10 @@ export async function listTarifasCuota(): Promise<TarifaCuota[]> {
 
 export async function createTarifaCuota(
   input: Omit<TarifaCuota, 'id' | 'createdAt' | 'updatedAt'>,
-  actorUid: string,
+  actor: AuditActorInput,
 ): Promise<string> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const tarifaRef = doc(collection(database, 'tarifas_cuotas'))
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
@@ -111,7 +113,7 @@ export async function createTarifaCuota(
     updatedAt: serverTimestamp(),
   })
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'TARIFA_CUOTA_CREATED',
     entity: 'tarifas_cuotas',
     entityId: tarifaRef.id,
@@ -125,15 +127,16 @@ export async function createTarifaCuota(
   return tarifaRef.id
 }
 
-export async function setTarifaCuotaActiva(tarifaId: string, activa: boolean, actorUid: string) {
+export async function setTarifaCuotaActiva(tarifaId: string, activa: boolean, actor: AuditActorInput) {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const tarifaRef = doc(database, 'tarifas_cuotas', tarifaId)
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
 
   batch.update(tarifaRef, { activa, updatedAt: serverTimestamp() })
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: activa ? 'TARIFA_CUOTA_ACTIVATED' : 'TARIFA_CUOTA_DEACTIVATED',
     entity: 'tarifas_cuotas',
     entityId: tarifaId,
@@ -142,8 +145,9 @@ export async function setTarifaCuotaActiva(tarifaId: string, activa: boolean, ac
   await batch.commit()
 }
 
-export async function generarCuotasPeriodo(periodo: string, actorUid: string): Promise<GeneracionCuotasResult> {
+export async function generarCuotasPeriodo(periodo: string, actor: AuditActorInput): Promise<GeneracionCuotasResult> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const [socios, tarifas, excepciones, cambios, obligacionesSnapshot] = await Promise.all([
     listSocios(),
     listTarifasCuota(),
@@ -197,7 +201,7 @@ export async function generarCuotasPeriodo(periodo: string, actorUid: string): P
         origen: 'TARIFA',
       } as unknown as Parameters<typeof createObligacion>[0]
 
-      const result = await createObligacion(generatedInput, actorUid)
+      const result = await createObligacion(generatedInput, actorSnapshot)
       existentes.add(key)
       creadas += 1
       if (excepcion.estado === 'EXENTA') exentas += 1
@@ -212,7 +216,7 @@ export async function generarCuotasPeriodo(periodo: string, actorUid: string): P
   const auditRef = doc(collection(database, 'audit_log'))
   const summaryBatch = writeBatch(database)
   summaryBatch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'CUOTAS_PERIODO_GENERATED',
     entity: 'obligaciones',
     periodo,

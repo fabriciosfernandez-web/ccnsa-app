@@ -40,6 +40,7 @@ function eventDetail(item: AuditEvent) {
   if (item.entity === 'socios') return 'Socio'
   if (item.entity === 'actividades') return 'Actividad'
   if (item.entity === 'movimientos_actividad') return 'Movimiento de actividad'
+  if (item.entity === 'auth_session') return 'Sesión de usuario'
   return item.entity || 'Evento del sistema'
 }
 
@@ -106,6 +107,7 @@ export function AdminAuditoriaPage() {
         item.socioId,
         item.periodo,
         item.motivo,
+        item.authMethod,
       ].filter(Boolean).join(' ').toLocaleLowerCase('es')
       return haystack.includes(needle)
     })
@@ -143,7 +145,7 @@ export function AdminAuditoriaPage() {
       ['Registro de auditoría'],
       ['Generado', new Intl.DateTimeFormat('es-PY', { dateStyle: 'short', timeStyle: 'short' }).format(new Date())],
       [],
-      ['Fecha/hora', 'Módulo', 'Acción', 'Usuario', 'Perfil / comité', 'Rol técnico', 'Email', 'UID', 'Entidad', 'ID entidad', 'Concepto', 'Importe', 'Motivo'],
+      ['Fecha/hora', 'Módulo', 'Acción', 'Usuario', 'Perfil / comité', 'Rol técnico', 'Email', 'UID', 'Método de acceso', 'Entidad', 'ID entidad', 'Concepto', 'Importe', 'Motivo'],
       ...filtered.map((item) => [
         formatExactDate(item.createdAt),
         item.modulo,
@@ -153,6 +155,7 @@ export function AdminAuditoriaPage() {
         item.actorRol ?? '',
         item.actorEmail ?? '',
         item.actorUid,
+        item.authMethod ?? '',
         item.entity,
         item.entityId,
         item.concepto ?? '',
@@ -174,7 +177,7 @@ export function AdminAuditoriaPage() {
       <AdminPageHeader
         eyebrow="Control y trazabilidad"
         title="Auditoría"
-        description="Registro centralizado de acciones administrativas y financieras. Los eventos son inmutables y conservan el usuario responsable de cada operación."
+        description="Registro centralizado de accesos, acciones administrativas y financieras. Los eventos son inmutables y conservan el usuario responsable de cada operación."
         actions={(
           <>
             <button className="button secondary" type="button" onClick={exportCsv} disabled={loading || filtered.length === 0}>
@@ -244,6 +247,7 @@ export function AdminAuditoriaPage() {
                             <div><span>Perfil visible</span><strong>{userRoleLabel(item.actorRol)}</strong><small>Rol técnico: {item.actorRol || '—'}</small></div>
                             <div><span>UID</span><code>{item.actorUid || '—'}</code></div>
                             <div><span>Acción técnica</span><code>{item.action}</code></div>
+                            {item.authMethod && <div><span>Método de acceso</span><strong>{item.authMethod}</strong></div>}
                             <div><span>Entidad</span><strong>{item.entity || '—'}</strong><small>{item.entityId || 'Sin ID de entidad'}</small></div>
                             {item.periodo && <div><span>Período</span><strong>{item.periodo}</strong></div>}
                             {item.socioId && <div><span>Socio ID</span><code>{item.socioId}</code></div>}

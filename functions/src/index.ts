@@ -674,3 +674,68 @@ export const updateUserAccess = onCall(
     }
   },
 )
+
+
+type AuthAuditAction = 'LOGIN_SUCCESS' | 'LOGOUT'
+
+function authMethodFromToken(token: Record<string, unknown>) {
+  const firebase = token.firebase
+  if (!firebase || typeof firebase !== 'object') return 'UNKNOWN'
+  const provider = stringValue((firebase as Record<string, unknown>).sign_in_provider)
+  if (provider === 'google.com') return 'GOOGLE'
+  if (provider === 'password') return 'EMAIL_PASSWORD'
+  return provider ? provider.toUpperCase() : 'UNKNOWN'
+}
+
+export const recordAuthEvent = onCall(
+  {
+    minInstances: 0,
+    maxInstances: 1,
+    memory: '256MiB',
+    cpu: 'gcf_gen1',
+    timeoutSeconds: 20,
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'La sesión no está autenticada.')
+    }
+
+    const action = stringValue((request.data ?? {}).action) as AuthAuditAction
+    if (action !== 'LOGIN_SUCCESS' && action !== 'LOGOUT') {
+      throw new HttpsError('invalid-argument', 'El evento de acceso no es válido.')
+    }
+
+    const uid = request.auth.uid
+    const userSnapshot = await database.collection('users').doc(uid).get()
+    if (!userSnapshot.exists) return { recorded: false, reason: 'UNLINKED_USER' }
+
+    const profile = userSnapshot.data() ?? {}
+    if (profile.active !== true) return { recorded: false, reason: 'INACTIVE_USER' }
+
+    const role = stringValue(profile.role)
+    if (!['SOCIO', 'TESORERIA', 'ADMIN', 'CONSULTA'].includes(role)) {
+      return { recorded: false, reason: 'INVALID_ROLE' }
+    }
+
+    const authMethod = authMethodFromToken(request.auth.token as Record<string, unknown>)
+    const actorNombre = stringValue(
+      profile.displayName,
+      stringValue(request.auth.token.name, stringValue(request.auth.token.email, uid)),
+    )
+
+    await database.collection('audit_log').add({
+      actorUid: uid,
+      actorNombre,
+      actorEmail: stringValue(request.auth.token.email) || null,
+      actorRol: role,
+      socioId: role === 'SOCIO' ? stringValue(profile.socioId) || null : null,
+      action,
+      entity: 'auth_session',
+      entityId: uid,
+      authMethod,
+      createdAt: FieldValue.serverTimestamp(),
+    })
+
+    return { recorded: true }
+  },
+)

@@ -564,7 +564,7 @@ export const updateUserAccess = onCall(
     if (!request.auth?.uid) {
       throw new HttpsError('unauthenticated', 'Iniciá sesión para administrar usuarios.')
     }
-    await requireAdminCaller(request.auth.uid)
+    const caller = await requireAdminCaller(request.auth.uid)
 
     const input = (request.data ?? {}) as UpdateUserAccessRequest
     const uid = stringValue(input.uid)
@@ -645,6 +645,9 @@ export const updateUserAccess = onCall(
     batch.set(targetRef, payload, { merge: true })
     batch.set(auditRef, {
       actorUid: request.auth.uid,
+      actorNombre: stringValue(caller.displayName, stringValue(request.auth.token.name, request.auth.uid)),
+      actorEmail: stringValue(caller.email, stringValue(request.auth.token.email)) || null,
+      actorRol: stringValue(caller.role) || 'ADMIN',
       action: existingSnapshot.exists ? 'USER_ACCESS_UPDATED' : 'USER_ACCESS_CREATED',
       entity: 'users',
       entityId: uid,

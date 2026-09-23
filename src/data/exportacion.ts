@@ -1,6 +1,9 @@
 import {
   collection,
+  doc,
   getDocs,
+  serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore'
 import { appEnvironment, db } from '../lib/firebase'
 
@@ -56,7 +59,7 @@ export interface ManualSnapshotResult {
   fileName: string
 }
 
-export async function downloadManualFirestoreSnapshot(): Promise<ManualSnapshotResult> {
+export async function downloadManualFirestoreSnapshot(actorUid: string): Promise<ManualSnapshotResult> {
   const database = requireDb()
 
   const snapshots = await Promise.all(
@@ -76,6 +79,19 @@ export async function downloadManualFirestoreSnapshot(): Promise<ManualSnapshotR
     }))
     documents += snapshot.size
   }
+
+  const auditRef = doc(collection(database, 'audit_log'))
+  const auditBatch = writeBatch(database)
+  auditBatch.set(auditRef, {
+    actorUid,
+    action: 'FIRESTORE_SNAPSHOT_EXPORTED',
+    entity: 'firestore_snapshot',
+    entityId: appEnvironment,
+    documents,
+    collections: SNAPSHOT_COLLECTIONS.length,
+    createdAt: serverTimestamp(),
+  })
+  await auditBatch.commit()
 
   const generatedAt = new Date()
   const localDate = new Date(

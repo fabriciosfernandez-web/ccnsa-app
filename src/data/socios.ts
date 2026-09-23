@@ -12,6 +12,7 @@ import {
   type Timestamp,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { resolveAuditActor, type AuditActorInput } from './auditActor'
 
 export type SocioCategoria = 'SOLTERO' | 'CASADO'
 export type SocioEstado = 'ACTIVO' | 'INACTIVO'
@@ -286,9 +287,10 @@ export async function loadSocio(socioId: string): Promise<Socio | null> {
 
 export async function createSocio(
   input: Omit<Socio, 'id' | 'createdAt' | 'updatedAt'>,
-  actorUid: string,
+  actor: AuditActorInput,
 ): Promise<string> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const socioRef = doc(collection(database, 'socios'))
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
@@ -299,7 +301,7 @@ export async function createSocio(
     updatedAt: serverTimestamp(),
   })
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'SOCIO_CREATED',
     entity: 'socios',
     entityId: socioRef.id,
@@ -394,9 +396,11 @@ export async function loadPortfolioSummary(today = new Date()): Promise<Portfoli
 
 export async function createObligacion(
   input: Omit<Obligacion, 'id' | 'createdAt' | 'updatedAt' | 'estado'> & { estado?: ObligacionEstado },
-  actorUid: string,
+  actor: AuditActorInput,
 ): Promise<RegistroConAplicacionResult> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
+  const actorUid = actorSnapshot.actorUid
   const [pagos, aplicaciones, notificationPreferences] = await Promise.all([
     listPagos(input.socioId),
     listAplicacionesPago(input.socioId),
@@ -445,7 +449,7 @@ export async function createObligacion(
   }
 
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'OBLIGACION_CREATED',
     entity: 'obligaciones',
     entityId: obligacionRef.id,
@@ -487,9 +491,11 @@ export async function createObligacion(
 
 export async function createPago(
   input: Omit<Pago, 'id' | 'createdAt' | 'estado'> & { estado?: PagoEstado },
-  actorUid: string,
+  actor: AuditActorInput,
 ): Promise<RegistroConAplicacionResult> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
+  const actorUid = actorSnapshot.actorUid
   const [obligaciones, aplicaciones, notificationPreferences] = await Promise.all([
     listObligaciones(input.socioId),
     listAplicacionesPago(input.socioId),
@@ -539,7 +545,7 @@ export async function createPago(
   }
 
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'PAGO_CREATED',
     entity: 'pagos',
     entityId: pagoRef.id,

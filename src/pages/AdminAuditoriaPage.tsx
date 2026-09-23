@@ -50,7 +50,7 @@ function csvCell(value: string | number) {
 }
 
 export function AdminAuditoriaPage() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -124,11 +124,11 @@ export function AdminAuditoriaPage() {
   }, [events])
 
   async function exportManualSnapshot() {
-    if (profile?.role !== 'ADMIN' || snapshotExporting) return
+    if (!user || profile?.role !== 'ADMIN' || snapshotExporting) return
     try {
       setSnapshotExporting(true)
       setSnapshotMessage('')
-      const result = await downloadManualFirestoreSnapshot()
+      const result = await downloadManualFirestoreSnapshot(user.uid)
       setSnapshotMessage(
         `Snapshot manual generado: ${result.documents} documento(s) en ${result.collections} colecciones.`,
       )

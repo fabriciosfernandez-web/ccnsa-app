@@ -20,6 +20,7 @@ export interface AuditEvent {
   periodo?: string
   importe?: number
   motivo?: string
+  authMethod?: string
 }
 
 function requireDb() {
@@ -38,6 +39,7 @@ function asOptionalNumber(value: unknown) {
 
 function moduleFrom(data: DocumentData, action: string, entity: string) {
   const key = `${action} ${entity}`.toUpperCase()
+  if (/LOGIN|LOGOUT|AUTH_SESSION/.test(key)) return 'Accesos'
   if (/MIGRATION|MIGRACION/.test(key)) return 'Migración'
   if (/USER_ACCESS|\bUSERS\b/.test(key)) return 'Usuarios y accesos'
   if (/ACTIVIDAD/.test(key)) return 'Actividades'
@@ -74,6 +76,8 @@ function humanizeAction(action: string) {
     CUENTA_RECONCILIADA: 'Estado de cuenta conciliado',
     USER_ACCESS_CREATED: 'Acceso de usuario creado',
     USER_ACCESS_UPDATED: 'Acceso de usuario actualizado',
+    LOGIN_SUCCESS: 'Inicio de sesión',
+    LOGOUT: 'Cierre de sesión',
     MIGRATION_2026_COMPLETED: 'Migración 2026 completada',
   }
   if (labels[action]) return labels[action]
@@ -130,6 +134,7 @@ export async function loadAuditEvents(): Promise<AuditEvent[]> {
         periodo: asString(data.periodo) || undefined,
         importe: asOptionalNumber(data.importe),
         motivo: asString(data.motivo) || asString(data.reason) || undefined,
+        authMethod: asString(data.authMethod) || undefined,
       } satisfies AuditEvent
     })
     .sort((a, b) => {

@@ -40,6 +40,7 @@ function asOptionalNumber(value: unknown) {
 function moduleFrom(data: DocumentData, action: string, entity: string) {
   const key = `${action} ${entity}`.toUpperCase()
   if (/LOGIN|LOGOUT|AUTH_SESSION/.test(key)) return 'Accesos'
+  if (/SNAPSHOT|AUDIT/.test(key)) return 'Auditoría'
   if (/MIGRATION|MIGRACION/.test(key)) return 'Migración'
   if (/USER_ACCESS|\bUSERS\b/.test(key)) return 'Usuarios y accesos'
   if (/ACTIVIDAD/.test(key)) return 'Actividades'

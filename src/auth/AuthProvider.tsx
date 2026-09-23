@@ -16,6 +16,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, firebaseConfigured } from '../lib/firebase'
+import { recordAuthAuditEvent } from '../data/authAudit'
 import { disableCurrentPushDevice, hasStoredPushDevice } from '../notifications/pushSubscriptionService'
 
 export type UserRole = 'SOCIO' | 'TESORERIA' | 'ADMIN' | 'CONSULTA'
@@ -135,6 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Firebase todavía no está configurado para este entorno.')
     }
     await signInWithEmailAndPassword(auth, email, password)
+    try {
+      await recordAuthAuditEvent('LOGIN_SUCCESS')
+    } catch {
+      // El acceso no debe fallar si la auditoría temporalmente no está disponible.
+    }
   }
 
   async function loginWithGoogle() {
@@ -142,10 +148,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Firebase todavía no está configurado para este entorno.')
     }
     await signInWithPopup(auth, googleProvider)
+    try {
+      await recordAuthAuditEvent('LOGIN_SUCCESS')
+    } catch {
+      // El acceso no debe fallar si la auditoría temporalmente no está disponible.
+    }
   }
 
   async function logout() {
     if (!auth) return
+    try {
+      await recordAuthAuditEvent('LOGOUT')
+    } catch {
+      // El cierre de sesión debe continuar aunque no pueda escribirse la auditoría.
+    }
     if (profile?.role === 'SOCIO' && hasStoredPushDevice()) {
       try {
         await disableCurrentPushDevice()

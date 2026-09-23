@@ -5,6 +5,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { resolveAuditActor, type AuditActorInput } from './auditActor'
 import {
   listAplicacionesPago,
   listObligaciones,
@@ -126,9 +127,11 @@ function buildConciliacionPlan(
 
 export async function conciliarRegistrosPrevios(
   socioId: string,
-  actorUid: string,
+  actor: AuditActorInput,
 ): Promise<ConciliacionResult> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
+  const actorUid = actorSnapshot.actorUid
   const [obligaciones, pagos, aplicaciones] = await Promise.all([
     listObligaciones(socioId),
     listPagos(socioId),
@@ -164,7 +167,7 @@ export async function conciliarRegistrosPrevios(
 
   const auditRef = doc(collection(database, 'audit_log'))
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'CUENTA_RECONCILIADA',
     entity: 'socios',
     entityId: socioId,
@@ -212,7 +215,8 @@ export async function analizarConciliacionMasiva(): Promise<ConciliacionMasivaPr
   }
 }
 
-export async function conciliarRegistrosPreviosMasivo(actorUid: string): Promise<ConciliacionMasivaResult> {
+export async function conciliarRegistrosPreviosMasivo(actor: AuditActorInput): Promise<ConciliacionMasivaResult> {
+  const actorSnapshot = await resolveAuditActor(actor)
   const socios = await listSocios()
   let sociosProcesados = 0
   let cantidadAplicaciones = 0
@@ -221,7 +225,7 @@ export async function conciliarRegistrosPreviosMasivo(actorUid: string): Promise
 
   for (const socio of socios) {
     try {
-      const result = await conciliarRegistrosPrevios(socio.id, actorUid)
+      const result = await conciliarRegistrosPrevios(socio.id, actorSnapshot)
       if (result.cantidadAplicaciones === 0) continue
       sociosProcesados += 1
       cantidadAplicaciones += result.cantidadAplicaciones

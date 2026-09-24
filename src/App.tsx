@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppShell } from './layouts/AppShell'
+import { LoadingScreen } from './components/LoadingScreen'
 import { AdminActividadesPage } from './pages/AdminActividadesPage'
 import { AdminAuditoriaPage } from './pages/AdminAuditoriaPage'
 import { AdminCuotasPage } from './pages/AdminCuotasPage'
@@ -24,7 +25,7 @@ import { SocioProfilePage } from './pages/SocioProfilePage'
 function HomeRedirect() {
   const { user, profile, loading } = useAuth()
 
-  if (loading) return <div className="screen-message">Cargando…</div>
+  if (loading) return <LoadingScreen />
   if (!user || !profile) return <Navigate to="/login" replace />
   if (profile.role === 'SOCIO') return <Navigate to="/socio/inicio" replace />
   return <Navigate to="/admin" replace />

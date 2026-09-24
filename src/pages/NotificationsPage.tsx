@@ -32,7 +32,9 @@ function errorMessage(error: unknown) {
 }
 
 function actionLabel(actionUrl?: string) {
-  return actionUrl === '/socio/notificaciones' ? 'Abrir notificaciones' : 'Ver estado de cuenta'
+  if (actionUrl === '/socio/notificaciones') return 'Abrir notificaciones'
+  if (actionUrl === '/socio/actividades') return 'Ver actividad'
+  return 'Ver estado de cuenta'
 }
 
 export function NotificationsPage() {

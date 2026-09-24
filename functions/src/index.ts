@@ -40,6 +40,151 @@ async function writeDelivery(
   }, { merge: true })
 }
 
+type PushDeliveryResult = {
+  notificationId: string
+  socioId?: string
+  status: 'SENT' | 'PARTIAL' | 'FAILED' | 'SKIPPED'
+  attempted?: number
+  successCount?: number
+  failureCount?: number
+  reason?: string
+}
+
+async function processNotificationPush(
+  notificationId: string,
+  notification: NotificationData,
+): Promise<PushDeliveryResult> {
+  const socioId = stringValue(notification.socioId)
+  const title = stringValue(notification.title, 'CCNSA')
+  const body = stringValue(notification.message, 'Tenés una nueva notificación.')
+  const kind = stringValue(notification.kind, 'GENERAL_NOTICE')
+  const actionUrl = stringValue(notification.actionUrl, '/socio/notificaciones')
+
+  try {
+    await writeDelivery(notificationId, { status: 'PENDING', socioId, notificationId })
+
+    if (!socioId) {
+      const result: PushDeliveryResult = {
+        notificationId,
+        status: 'SKIPPED',
+        reason: 'MISSING_SOCIO_ID',
+      }
+      await writeDelivery(notificationId, result)
+      return result
+    }
+
+    const preferenceSnapshot = await database
+      .collection('notification_preferences')
+      .doc(socioId)
+      .get()
+
+    const preferences = preferenceSnapshot.exists
+      ? preferenceSnapshot.data() ?? {}
+      : {}
+
+    if (!preferenceAllowsKind(kind, preferences)) {
+      const result: PushDeliveryResult = {
+        notificationId,
+        socioId,
+        status: 'SKIPPED',
+        reason: 'PUSH_DISABLED_BY_PREFERENCE',
+      }
+      await writeDelivery(notificationId, result)
+      return result
+    }
+
+    const subscriptionsSnapshot = await database
+      .collection('push_subscriptions')
+      .where('socioId', '==', socioId)
+      .get()
+
+    const subscriptions = subscriptionsSnapshot.docs
+      .map((document) => ({
+        ref: document.ref,
+        token: stringValue(document.data().token),
+        enabled: document.data().enabled === true,
+      }))
+      .filter((item) => item.enabled && item.token)
+
+    if (subscriptions.length === 0) {
+      const result: PushDeliveryResult = {
+        notificationId,
+        socioId,
+        status: 'SKIPPED',
+        reason: 'NO_ACTIVE_PUSH_SUBSCRIPTIONS',
+      }
+      await writeDelivery(notificationId, result)
+      return result
+    }
+
+    const selected = subscriptions.slice(0, 500)
+    const messagingResult = await getMessaging().sendEachForMulticast({
+      tokens: selected.map((item) => item.token),
+      data: {
+        title,
+        body,
+        actionUrl: actionUrl.startsWith('/') ? actionUrl : '/socio/notificaciones',
+        notificationId,
+        kind,
+      },
+      webpush: {
+        headers: {
+          TTL: '86400',
+          Urgency: kind === 'OVERDUE_REMINDER' ? 'normal' : 'high',
+        },
+      },
+    })
+
+    const invalidCodes = new Set([
+      'messaging/invalid-registration-token',
+      'messaging/registration-token-not-registered',
+    ])
+
+    const cleanup: Promise<unknown>[] = []
+    messagingResult.responses.forEach((response, index) => {
+      if (response.success) return
+      const code = response.error?.code || ''
+      if (invalidCodes.has(code)) cleanup.push(selected[index].ref.delete())
+    })
+    const cleanupResults = await Promise.allSettled(cleanup)
+
+    const result: PushDeliveryResult = {
+      notificationId,
+      socioId,
+      status: messagingResult.failureCount === 0
+        ? 'SENT'
+        : messagingResult.successCount > 0
+          ? 'PARTIAL'
+          : 'FAILED',
+      attempted: selected.length,
+      successCount: messagingResult.successCount,
+      failureCount: messagingResult.failureCount,
+      reason: [...new Set(
+        messagingResult.responses.flatMap((response) => response.error ? [response.error.code] : []),
+      )].join(', ') || undefined,
+    }
+
+    await writeDelivery(notificationId, {
+      ...result,
+      staleSubscriptionsRemoved: cleanupResults.filter((item) => item.status === 'fulfilled').length,
+    })
+    return result
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? String(error.code) : 'PUSH_PROCESSING_FAILED'
+    logger.error('Push processing failed', { notificationId, socioId, code })
+
+    const result: PushDeliveryResult = {
+      notificationId,
+      socioId: socioId || undefined,
+      status: 'FAILED',
+      reason: code,
+    }
+    await writeDelivery(notificationId, result)
+    return result
+  }
+}
+
 export const deliverNotificationPush = onDocumentCreated(
   {
     document: 'notifications/{notificationId}',
@@ -52,120 +197,57 @@ export const deliverNotificationPush = onDocumentCreated(
   },
   async (event) => {
     const snapshot = event.data
-    const notificationId = event.params.notificationId
-
     if (!snapshot) return
-
-    const notification = snapshot.data() as NotificationData
-    const socioId = stringValue(notification.socioId)
-    const title = stringValue(notification.title, 'CCNSA')
-    const body = stringValue(notification.message, 'Tenés una nueva notificación.')
-    const kind = stringValue(notification.kind, 'GENERAL_NOTICE')
-    const actionUrl = stringValue(notification.actionUrl, '/socio/notificaciones')
-
-    try {
-      await writeDelivery(notificationId, { status: 'PENDING', socioId, notificationId })
-
-      if (!socioId) {
-        await writeDelivery(notificationId, {
-          status: 'SKIPPED',
-          reason: 'MISSING_SOCIO_ID',
-        })
-        return
-      }
-
-      const preferenceSnapshot = await database
-        .collection('notification_preferences')
-        .doc(socioId)
-        .get()
-
-      const preferences = preferenceSnapshot.exists
-        ? preferenceSnapshot.data() ?? {}
-        : {}
-
-      if (!preferenceAllowsKind(kind, preferences)) {
-        await writeDelivery(notificationId, {
-          status: 'SKIPPED',
-          reason: 'PUSH_DISABLED_BY_PREFERENCE',
-          socioId,
-        })
-        return
-      }
-
-      const subscriptionsSnapshot = await database
-        .collection('push_subscriptions')
-        .where('socioId', '==', socioId)
-        .get()
-
-      const subscriptions = subscriptionsSnapshot.docs
-        .map((document) => ({
-          ref: document.ref,
-          token: stringValue(document.data().token),
-          enabled: document.data().enabled === true,
-        }))
-        .filter((item) => item.enabled && item.token)
-
-      if (subscriptions.length === 0) {
-        await writeDelivery(notificationId, {
-          status: 'SKIPPED',
-          reason: 'NO_ACTIVE_PUSH_SUBSCRIPTIONS',
-          socioId,
-        })
-        return
-      }
-
-      const selected = subscriptions.slice(0, 500)
-      const result = await getMessaging().sendEachForMulticast({
-        tokens: selected.map((item) => item.token),
-        data: {
-          title,
-          body,
-          actionUrl: actionUrl.startsWith('/') ? actionUrl : '/socio/notificaciones',
-          notificationId,
-          kind,
-        },
-        webpush: {
-          headers: {
-            TTL: '86400',
-            Urgency: kind === 'OVERDUE_REMINDER' ? 'normal' : 'high',
-          },
-        },
-      })
-
-      const invalidCodes = new Set([
-        'messaging/invalid-registration-token',
-        'messaging/registration-token-not-registered',
-      ])
-
-      const cleanup: Promise<unknown>[] = []
-      result.responses.forEach((response, index) => {
-        if (response.success) return
-        const code = response.error?.code || ''
-        if (invalidCodes.has(code)) {
-          cleanup.push(selected[index].ref.delete())
-        }
-      })
-      const cleanupResults = await Promise.allSettled(cleanup)
-
-      await writeDelivery(notificationId, {
-        status: result.failureCount === 0 ? 'SENT' : result.successCount > 0 ? 'PARTIAL' : 'FAILED',
-        socioId,
-        attempted: selected.length,
-        successCount: result.successCount,
-        failureCount: result.failureCount,
-        reason: [...new Set(result.responses.flatMap((response) => response.error ? [response.error.code] : []))].join(', '),
-        staleSubscriptionsRemoved: cleanupResults.filter((result) => result.status === 'fulfilled').length,
-      })
-    } catch (error) {
-      const code = error && typeof error === 'object' && 'code' in error
-        ? String(error.code) : 'PUSH_PROCESSING_FAILED'
-      // Do not log device tokens or message content.
-      logger.error('Push processing failed', { notificationId, socioId, code })
-      await writeDelivery(notificationId, { status: 'FAILED', socioId, reason: code })
-    }
+    await processNotificationPush(
+      event.params.notificationId,
+      snapshot.data() as NotificationData,
+    )
   },
 )
 
+type PushDeliveryRequest = {
+  notificationId?: unknown
+}
+
+export const deliverNotificationPushNow = onCall(
+  {
+    minInstances: 0,
+    maxInstances: 1,
+    memory: '256MiB',
+    cpu: 'gcf_gen1',
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'Iniciá sesión para enviar notificaciones push.')
+    }
+
+    const callerSnapshot = await database.collection('users').doc(request.auth.uid).get()
+    const caller = callerSnapshot.data() ?? {}
+    if (
+      !callerSnapshot.exists
+      || caller.active !== true
+      || !['ADMIN', 'TESORERIA'].includes(stringValue(caller.role))
+    ) {
+      throw new HttpsError('permission-denied', 'No tenés permisos para enviar notificaciones push.')
+    }
+
+    const notificationId = stringValue((request.data ?? {} as PushDeliveryRequest).notificationId)
+    if (!notificationId) {
+      throw new HttpsError('invalid-argument', 'La notificación no está identificada.')
+    }
+
+    const notificationSnapshot = await database.collection('notifications').doc(notificationId).get()
+    if (!notificationSnapshot.exists) {
+      throw new HttpsError('not-found', 'La notificación ya no existe.')
+    }
+
+    return processNotificationPush(
+      notificationId,
+      notificationSnapshot.data() as NotificationData,
+    )
+  },
+)
 
 type ActivityRegistrationAction = {
   actividadId?: unknown

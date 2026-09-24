@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { resolveAuditActor, type AuditActorInput } from './auditActor'
+import { deliverNotificationPushNow } from '../notifications/pushDeliveryService'
 
 export type SocioCategoria = 'SOLTERO' | 'CASADO'
 export type SocioEstado = 'ACTIVO' | 'INACTIVO'
@@ -418,6 +419,7 @@ export async function createObligacion(
   const batch = writeBatch(database)
   const estadoInicial = input.estado ?? 'PENDIENTE'
   const sinImputacion = estadoInicial === 'EXENTA' || estadoInicial === 'ANULADA'
+  let notificationId: string | null = null
   let restante = sinImputacion ? 0 : input.importe
   let aplicado = 0
   let cantidadAplicaciones = 0
@@ -462,6 +464,7 @@ export async function createObligacion(
 
   if (notificationPreferences.inApp && !sinImputacion) {
     const notificationRef = doc(database, 'notifications', `obligation_${obligacionRef.id}`)
+    notificationId = notificationRef.id
     const coveredText = restante <= 0
       ? ' La obligación quedó cubierta con saldo a favor existente.'
       : aplicado > 0
@@ -486,6 +489,9 @@ export async function createObligacion(
   }
 
   await batch.commit()
+  if (notificationId) {
+    void deliverNotificationPushNow(notificationId).catch(() => undefined)
+  }
   return { id: obligacionRef.id, importeAplicado: aplicado, saldoDisponible: restante, cantidadAplicaciones }
 }
 
@@ -515,6 +521,7 @@ export async function createPago(
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
   const estadoInicial = input.estado ?? 'REGISTRADO'
+  let notificationId: string | null = null
   let restante = input.importe
   let aplicado = 0
   let cantidadAplicaciones = 0
@@ -558,6 +565,7 @@ export async function createPago(
 
   if (estadoInicial === 'REGISTRADO' && notificationPreferences.inApp && notificationPreferences.paymentConfirmations) {
     const notificationRef = doc(database, 'notifications', `payment_${pagoRef.id}`)
+    notificationId = notificationRef.id
     const saldoText = restante > 0 ? ` Quedaron ${notificationMoney(restante)} como saldo a favor.` : ''
     batch.set(notificationRef, {
       socioId: input.socioId,
@@ -577,5 +585,8 @@ export async function createPago(
   }
 
   await batch.commit()
+  if (notificationId) {
+    void deliverNotificationPushNow(notificationId).catch(() => undefined)
+  }
   return { id: pagoRef.id, importeAplicado: aplicado, saldoDisponible: restante, cantidadAplicaciones }
 }

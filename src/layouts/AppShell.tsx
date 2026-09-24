@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useAuth, userProfileContextLabel } from '../auth/AuthProvider'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { LOGIN_NOTIFICATION_PROMPT_KEY, useAuth, userProfileContextLabel } from '../auth/AuthProvider'
 import { appEnvironment } from '../lib/firebase'
 import { subscribeNotificationsForSocio } from '../notifications/firestoreNotificationService'
 import { subscribeForegroundMessages } from '../notifications/webPushDev'
@@ -59,8 +59,14 @@ function routeMeta(pathname: string) {
 export function AppShell() {
   const { profile, logout } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const { preference, setPreference } = useTheme()
   const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [loginNotificationPrompt, setLoginNotificationPrompt] = useState<{
+    count: number
+    title: string
+    message: string
+  } | null>(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const meta = routeMeta(location.pathname)
   const configuredLogo = String(import.meta.env.VITE_BRAND_LOGO_URL || '').trim()
@@ -79,7 +85,25 @@ export function AppShell() {
 
     return subscribeNotificationsForSocio(
       profile.socioId,
-      (items) => setUnreadNotifications(items.filter((item) => item.status === 'UNREAD').length),
+      (items) => {
+        const unread = items.filter((item) => item.status === 'UNREAD')
+        setUnreadNotifications(unread.length)
+
+        const promptState = typeof window !== 'undefined'
+          ? window.sessionStorage.getItem(LOGIN_NOTIFICATION_PROMPT_KEY)
+          : null
+
+        if (promptState && unread.length === 0) {
+          window.sessionStorage.removeItem(LOGIN_NOTIFICATION_PROMPT_KEY)
+        } else if (promptState && unread.length > 0) {
+          window.sessionStorage.setItem(LOGIN_NOTIFICATION_PROMPT_KEY, 'displaying')
+          setLoginNotificationPrompt({
+            count: unread.length,
+            title: unread[0].title,
+            message: unread[0].message,
+          })
+        }
+      },
       () => setUnreadNotifications(0),
     )
   }, [profile?.role, profile?.socioId])
@@ -117,8 +141,44 @@ export function AppShell() {
     }
   }, [profile?.role])
 
+  function dismissLoginNotificationPrompt() {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(LOGIN_NOTIFICATION_PROMPT_KEY)
+    }
+    setLoginNotificationPrompt(null)
+  }
+
+  function openNotificationsFromPrompt() {
+    dismissLoginNotificationPrompt()
+    navigate('/socio/notificaciones')
+  }
+
   return (
     <div className="app-shell legacy-app-shell">
+      {loginNotificationPrompt && profile?.role === 'SOCIO' && (
+        <aside className="login-notification-toast" role="dialog" aria-live="polite" aria-label="Notificaciones pendientes">
+          <button
+            className="login-notification-close"
+            type="button"
+            aria-label="Cerrar aviso"
+            onClick={dismissLoginNotificationPrompt}
+          >
+            ×
+          </button>
+          <span className="login-notification-icon" aria-hidden="true">🔔</span>
+          <div className="login-notification-copy">
+            <small>Al ingresar a CCNSA</small>
+            <strong>
+              Tenés {loginNotificationPrompt.count} notificación{loginNotificationPrompt.count === 1 ? '' : 'es'} pendiente{loginNotificationPrompt.count === 1 ? '' : 's'}
+            </strong>
+            <p><b>{loginNotificationPrompt.title}</b> · {loginNotificationPrompt.message}</p>
+          </div>
+          <div className="login-notification-actions">
+            <button className="button secondary" type="button" onClick={dismissLoginNotificationPrompt}>Ahora no</button>
+            <button className="button primary" type="button" onClick={openNotificationsFromPrompt}>Ver notificaciones</button>
+          </div>
+        </aside>
+      )}
       {mobileNavOpen && (
         <button
           className="mobile-nav-backdrop"

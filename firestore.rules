@@ -42,6 +42,36 @@ service cloud.firestore {
       return currentUser().data.socioId;
     }
 
+    function treasuryAuditActionAllowed(action) {
+      return action in [
+        'INGRESO_CREATED',
+        'EGRESO_CREATED',
+        'INGRESO_VOIDED',
+        'EGRESO_VOIDED',
+        'ACTIVIDAD_CREATED',
+        'ACTIVIDAD_STATUS_CHANGED',
+        'ACTIVIDAD_INGRESO_CREATED',
+        'ACTIVIDAD_EGRESO_CREATED',
+        'ACTIVIDAD_MOVIMIENTO_VOIDED',
+        'ACTIVIDAD_REGISTRATION_CONFIG_UPDATED',
+        'ACTIVIDAD_REGISTRATION_ADMIN_UPDATED',
+        'ACTIVIDAD_REGISTRATION_REQUESTED',
+        'ACTIVIDAD_REGISTRATION_CANCELLED',
+        'OBLIGACION_CREATED',
+        'PAGO_CREATED',
+        'CUOTAS_PERIODO_GENERATED',
+        'CUENTA_RECONCILIADA'
+      ];
+    }
+
+    function treasuryCanReadAudit() {
+      return isTreasury()
+        && (
+          resource.data.actorUid == request.auth.uid
+          || treasuryAuditActionAllowed(resource.data.action)
+        );
+    }
+
     function canCreateFinanceMovement() {
       return (isAdmin() || isTreasury())
         && request.resource.data.actorUid == request.auth.uid
@@ -135,7 +165,8 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow read: if signedIn()
+        && (request.auth.uid == uid || isAdmin() || isReadOnlyStaff());
       allow create, update, delete: if isAdmin();
     }
 
@@ -327,7 +358,7 @@ service cloud.firestore {
     }
 
     match /audit_log/{logId} {
-      allow read: if isStaff();
+      allow read: if isAdmin() || isReadOnlyStaff() || treasuryCanReadAudit();
       allow create: if (isAdmin() || isTreasury())
         && request.resource.data.actorUid == request.auth.uid;
       allow update, delete: if false;

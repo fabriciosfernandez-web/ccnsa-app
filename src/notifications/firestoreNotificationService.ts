@@ -16,6 +16,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { resolveAuditActor } from '../data/auditActor'
 import type { NotificationService } from './NotificationService'
 import type { AccountNotification, NotificationDelivery, NotificationKind, NotificationPreferences } from './types'
 
@@ -174,6 +175,7 @@ export interface GeneralNoticeInput {
 
 export async function createGeneralNotice(input: GeneralNoticeInput, actorUid: string) {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actorUid)
   const preferencesSnapshot = await getDoc(doc(database, 'notification_preferences', input.socioId))
   const preferences = mapPreferences(
     input.socioId,
@@ -204,7 +206,7 @@ export async function createGeneralNotice(input: GeneralNoticeInput, actorUid: s
   })
 
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'GENERAL_NOTICE_CREATED',
     entity: 'notifications',
     entityId: notificationRef.id,

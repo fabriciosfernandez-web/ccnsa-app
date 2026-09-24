@@ -63,7 +63,7 @@ export function AdminAuditoriaPage() {
 
   useEffect(() => {
     let active = true
-    void loadAuditEvents()
+    void loadAuditEvents(profile?.role, user?.uid)
       .then((data) => {
         if (active) setEvents(data)
       })
@@ -74,7 +74,7 @@ export function AdminAuditoriaPage() {
         if (active) setLoading(false)
       })
     return () => { active = false }
-  }, [])
+  }, [profile?.role, user?.uid])
 
   const modules = useMemo(
     () => [...new Set(events.map((item) => item.modulo))].sort((a, b) => a.localeCompare(b, 'es')),
@@ -177,7 +177,9 @@ export function AdminAuditoriaPage() {
       <AdminPageHeader
         eyebrow="Control y trazabilidad"
         title="Auditoría"
-        description="Registro centralizado de accesos, acciones administrativas y financieras. Los eventos son inmutables y conservan el usuario responsable de cada operación."
+        description={profile?.role === 'TESORERIA'
+          ? 'Registro de operaciones financieras y de actividades, más tus propios eventos de acceso. Los eventos son inmutables y conservan el usuario responsable.'
+          : 'Registro centralizado de accesos, acciones administrativas y financieras. Los eventos son inmutables y conservan el usuario responsable de cada operación.'}
         actions={(
           <>
             <button className="button secondary" type="button" onClick={exportCsv} disabled={loading || filtered.length === 0}>

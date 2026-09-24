@@ -30,5 +30,7 @@ El socio puede consultar su cuenta, actividades, notificaciones y datos de perfi
 
 Cuando el socio habilita notificaciones push en su dispositivo, los avisos de pago registrado y nueva obligación pueden enviarse también como notificación del sistema. Si el push falla, la operación financiera y el aviso dentro de la aplicación permanecen registrados.
 
+Al iniciar sesión, si existen notificaciones sin leer, el portal muestra un resumen breve con acceso directo al centro de notificaciones. Durante la carga inicial se muestra una pantalla institucional mientras se valida la sesión y el perfil.
+
 ## 4. Buenas prácticas
 No borrar ni alterar registros financieros por fuera de los flujos previstos. Usar las funciones de corrección/anulación auditables y trabajar en DEV antes de promover cambios a PROD.

@@ -1,0 +1,111 @@
+.ccnsa-loading-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 18px;
+  padding: 24px;
+  color: #f4f1e9;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(197, 164, 90, 0.13), transparent 26%),
+    linear-gradient(150deg, #0c1925 0%, #10283a 52%, #0a1721 100%);
+}
+
+.ccnsa-loading-mark {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  display: grid;
+  place-items: center;
+}
+
+.ccnsa-loading-mark img {
+  position: relative;
+  z-index: 2;
+  width: 82px;
+  height: 82px;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.28));
+  animation: ccnsa-logo-breathe 1.7s ease-in-out infinite;
+}
+
+.ccnsa-loading-halo {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(197, 164, 90, 0.34);
+  border-radius: 50%;
+  box-shadow: 0 0 0 8px rgba(197, 164, 90, 0.035);
+  animation: ccnsa-halo 1.7s ease-in-out infinite;
+}
+
+.ccnsa-loading-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.ccnsa-loading-copy > span {
+  color: #c8d4dd;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ccnsa-loading-copy > strong {
+  color: #fff;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.55rem;
+  letter-spacing: 0.08em;
+}
+
+.ccnsa-loading-copy > small {
+  margin-top: 5px;
+  color: #aebbc6;
+  font-size: 0.82rem;
+}
+
+.ccnsa-loading-bar {
+  width: min(180px, 48vw);
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ccnsa-loading-bar span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, #c5a45a, transparent);
+  animation: ccnsa-loading-slide 1.15s ease-in-out infinite;
+}
+
+@keyframes ccnsa-logo-breathe {
+  0%, 100% { transform: scale(0.97); opacity: 0.88; }
+  50% { transform: scale(1.03); opacity: 1; }
+}
+
+@keyframes ccnsa-halo {
+  0%, 100% { transform: scale(0.92); opacity: 0.35; }
+  50% { transform: scale(1.04); opacity: 0.9; }
+}
+
+@keyframes ccnsa-loading-slide {
+  0% { transform: translateX(-130%); }
+  100% { transform: translateX(340%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ccnsa-loading-mark img,
+  .ccnsa-loading-halo,
+  .ccnsa-loading-bar span {
+    animation: none;
+  }
+
+  .ccnsa-loading-bar span {
+    width: 100%;
+    opacity: 0.45;
+  }
+}

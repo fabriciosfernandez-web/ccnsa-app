@@ -11,7 +11,7 @@ function formatDate(value?: string) {
 }
 
 export function SocioProfilePage() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const [socio, setSocio] = useState<Socio | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -41,6 +41,14 @@ export function SocioProfilePage() {
 
     void load()
   }, [profile?.socioId])
+
+  const accessEmail = user?.email || profile?.email || ''
+  const membershipEmail = socio?.email || ''
+  const emailMatches = Boolean(
+    accessEmail
+    && membershipEmail
+    && accessEmail.toLocaleLowerCase('es') === membershipEmail.toLocaleLowerCase('es'),
+  )
 
   return (
     <section className="page-stack legacy-page-stack socio-profile-page">
@@ -75,21 +83,31 @@ export function SocioProfilePage() {
               <p className="legacy-kicker">Membresía</p>
               <h3>Datos de la ficha</h3>
               <dl className="socio-profile-details">
+                <div><dt>Nombre registrado</dt><dd>{socio.nombre}</dd></div>
                 <div><dt>Categoría</dt><dd>{socio.categoria === 'CASADO' ? 'Matrimonio' : 'Individual'}</dd></div>
                 <div><dt>Estado</dt><dd>{socio.estado}</dd></div>
                 <div><dt>Fecha de ingreso</dt><dd>{formatDate(socio.fechaIngreso)}</dd></div>
-                <div><dt>Identificador</dt><dd className="socio-profile-id">{socio.id}</dd></div>
+                <div><dt>Correo de membresía</dt><dd>{membershipEmail || 'No informado'}</dd></div>
               </dl>
             </article>
 
             <article className="panel legacy-panel socio-profile-info">
-              <p className="legacy-kicker">Información</p>
-              <h3>Actualización de datos</h3>
-              <p className="muted">
-                Por seguridad, los datos de membresía todavía se administran desde la gestión institucional. Si necesitás corregir tu nombre, correo o categoría, comunicate con el Centro.
-              </p>
+              <p className="legacy-kicker">Cuenta de acceso</p>
+              <h3>Tu acceso al portal</h3>
+              <dl className="socio-profile-details socio-profile-access-details">
+                <div><dt>Correo de acceso</dt><dd>{accessEmail || 'No informado'}</dd></div>
+                <div><dt>Perfil</dt><dd>Socio</dd></div>
+                <div><dt>Vinculación</dt><dd>{profile?.socioId ? 'Cuenta vinculada a tu ficha' : 'Sin vinculación'}</dd></div>
+              </dl>
+
+              {accessEmail && membershipEmail && !emailMatches && (
+                <div className="notice warning">
+                  El correo con el que ingresás al portal es distinto del correo registrado en tu ficha de socio. Esto no afecta tu acceso, pero conviene mantener ambos datos actualizados.
+                </div>
+              )}
+
               <div className="cuotas-info-box">
-                <strong>Próxima etapa.</strong> Este espacio puede incorporar datos de contacto editables, documentos, actividades e inscripciones sin mezclar esa información con el estado de cuenta.
+                <strong>Actualización de datos.</strong> Por seguridad, nombre, correo de membresía, categoría y estado todavía se administran desde la gestión institucional. Si necesitás una corrección, comunicate con el Centro.
               </div>
             </article>
           </div>

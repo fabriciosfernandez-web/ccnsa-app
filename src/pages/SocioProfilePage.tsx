@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { loadSocio, type Socio } from '../data/socios'
 import './socio-profile.css'
@@ -8,6 +9,22 @@ function formatDate(value?: string) {
   const date = new Date(`${value}T00:00:00`)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat('es-PY', { dateStyle: 'long' }).format(date)
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return 'Sin registro'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('es-PY', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
+function accessProvider(providerIds: string[]) {
+  if (providerIds.includes('google.com')) return 'Google'
+  if (providerIds.includes('password')) return 'Correo y contraseña'
+  return providerIds[0] || 'Firebase Authentication'
 }
 
 export function SocioProfilePage() {
@@ -49,6 +66,9 @@ export function SocioProfilePage() {
     && membershipEmail
     && accessEmail.toLocaleLowerCase('es') === membershipEmail.toLocaleLowerCase('es'),
   )
+  const providerIds = user?.providerData.map((item) => item.providerId).filter(Boolean) ?? []
+  const provider = accessProvider(providerIds)
+  const lastSignIn = user?.metadata.lastSignInTime ?? null
 
   return (
     <section className="page-stack legacy-page-stack socio-profile-page">
@@ -88,6 +108,7 @@ export function SocioProfilePage() {
                 <div><dt>Estado</dt><dd>{socio.estado}</dd></div>
                 <div><dt>Fecha de ingreso</dt><dd>{formatDate(socio.fechaIngreso)}</dd></div>
                 <div><dt>Correo de membresía</dt><dd>{membershipEmail || 'No informado'}</dd></div>
+                <div><dt>Referencia de socio</dt><dd className="socio-profile-id">{socio.id}</dd></div>
               </dl>
             </article>
 
@@ -97,6 +118,8 @@ export function SocioProfilePage() {
               <dl className="socio-profile-details socio-profile-access-details">
                 <div><dt>Correo de acceso</dt><dd>{accessEmail || 'No informado'}</dd></div>
                 <div><dt>Perfil</dt><dd>Socio</dd></div>
+                <div><dt>Método de acceso</dt><dd>{provider}</dd></div>
+                <div><dt>Último ingreso</dt><dd>{formatDateTime(lastSignIn)}</dd></div>
                 <div><dt>Vinculación</dt><dd>{profile?.socioId ? 'Cuenta vinculada a tu ficha' : 'Sin vinculación'}</dd></div>
               </dl>
 
@@ -107,7 +130,12 @@ export function SocioProfilePage() {
               )}
 
               <div className="cuotas-info-box">
-                <strong>Actualización de datos.</strong> Por seguridad, nombre, correo de membresía, categoría y estado todavía se administran desde la gestión institucional. Si necesitás una corrección, comunicate con el Centro.
+                <strong>Actualización de datos.</strong> Por seguridad, nombre, correo de membresía, categoría y estado se administran desde la gestión institucional. Si necesitás una corrección, comunicate con el Centro.
+              </div>
+
+              <div className="socio-profile-actions" aria-label="Accesos del socio">
+                <Link className="button primary" to="/socio">Ver estado de cuenta</Link>
+                <Link className="button secondary" to="/socio/actividades">Ver actividades</Link>
               </div>
             </article>
           </div>

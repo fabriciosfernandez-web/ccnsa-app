@@ -2,8 +2,10 @@ import {
   collection,
   doc,
   getDocs,
+  query,
   runTransaction,
   serverTimestamp,
+  where,
   writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
@@ -200,15 +202,27 @@ function mapAudit(snapshot: QueryDocumentSnapshot<DocumentData>): FinanzasAuditE
   }
 }
 
+const FINANCE_AUDIT_ACTIONS = [
+  'INGRESO_CREATED',
+  'EGRESO_CREATED',
+  'INGRESO_VOIDED',
+  'EGRESO_VOIDED',
+  'ACTIVIDAD_INGRESO_CREATED',
+  'ACTIVIDAD_EGRESO_CREATED',
+  'ACTIVIDAD_MOVIMIENTO_VOIDED',
+] as const
+
 export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
   const database = requireDb()
-  const [ingresosSnapshot, egresosSnapshot, pagosSnapshot, sociosSnapshot, auditSnapshot, usersSnapshot] = await Promise.all([
+  const [ingresosSnapshot, egresosSnapshot, pagosSnapshot, sociosSnapshot, auditSnapshot] = await Promise.all([
     getDocs(collection(database, 'ingresos')),
     getDocs(collection(database, 'egresos')),
     getDocs(collection(database, 'pagos')),
     getDocs(collection(database, 'socios')),
-    getDocs(collection(database, 'audit_log')),
-    getDocs(collection(database, 'users')),
+    getDocs(query(
+      collection(database, 'audit_log'),
+      where('action', 'in', [...FINANCE_AUDIT_ACTIONS]),
+    )),
   ])
 
   const socios = new Map<string, string>()
@@ -216,15 +230,6 @@ export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
     socios.set(socio.id, asString(socio.data().nombre) || socio.id)
   }
 
-  const usuarios = new Map<string, { nombre?: string; email?: string; rol?: string }>()
-  for (const usuario of usersSnapshot.docs) {
-    const data = usuario.data()
-    usuarios.set(usuario.id, {
-      nombre: asString(data.displayName) || asString(data.nombre) || undefined,
-      email: asString(data.email) || undefined,
-      rol: asString(data.role) || undefined,
-    })
-  }
 
   const ingresosManuales = ingresosSnapshot.docs
     .map(mapIngreso)
@@ -255,27 +260,13 @@ export async function loadFinanzas(periodo: string): Promise<FinanzasSnapshot> {
     .map(({ estado: _estado, ...item }) => item)
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id))
 
-  const financeActions = new Set([
-    'INGRESO_CREATED',
-    'EGRESO_CREATED',
-    'INGRESO_VOIDED',
-    'EGRESO_VOIDED',
-    'ACTIVIDAD_INGRESO_CREATED',
-    'ACTIVIDAD_EGRESO_CREATED',
-    'ACTIVIDAD_MOVIMIENTO_VOIDED',
-  ])
   const audit = auditSnapshot.docs
     .map(mapAudit)
-    .filter((item) => financeActions.has(item.action) && item.fechaMovimiento && inPeriodo(item.fechaMovimiento, periodo))
-    .map((item) => {
-      const currentUser = usuarios.get(item.actorUid)
-      return {
-        ...item,
-        actorNombre: item.actorNombre || currentUser?.nombre || item.actorUid,
-        actorEmail: item.actorEmail || currentUser?.email,
-        actorRol: item.actorRol || currentUser?.rol,
-      }
-    })
+    .filter((item) => item.fechaMovimiento && inPeriodo(item.fechaMovimiento, periodo))
+    .map((item) => ({
+      ...item,
+      actorNombre: item.actorNombre || item.actorUid,
+    }))
     .sort((a, b) => {
       const aMillis = a.createdAt?.toMillis() ?? 0
       const bMillis = b.createdAt?.toMillis() ?? 0

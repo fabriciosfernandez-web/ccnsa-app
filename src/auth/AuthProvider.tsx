@@ -21,6 +21,14 @@ import { disableCurrentPushDevice, hasStoredPushDevice } from '../notifications/
 
 export type UserRole = 'SOCIO' | 'TESORERIA' | 'ADMIN' | 'CONSULTA'
 
+export const LOGIN_NOTIFICATION_PROMPT_KEY = 'ccnsa:show-login-notifications'
+
+function setLoginNotificationPromptPending(pending: boolean) {
+  if (typeof window === 'undefined') return
+  if (pending) window.sessionStorage.setItem(LOGIN_NOTIFICATION_PROMPT_KEY, 'pending')
+  else window.sessionStorage.removeItem(LOGIN_NOTIFICATION_PROMPT_KEY)
+}
+
 export interface UserProfile {
   uid: string
   email: string | null
@@ -135,7 +143,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth) {
       throw new Error('Firebase todavía no está configurado para este entorno.')
     }
-    await signInWithEmailAndPassword(auth, email, password)
+    setLoginNotificationPromptPending(true)
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+    } catch (caught) {
+      setLoginNotificationPromptPending(false)
+      throw caught
+    }
     try {
       await recordAuthAuditEvent('LOGIN_SUCCESS')
     } catch {
@@ -147,7 +161,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth) {
       throw new Error('Firebase todavía no está configurado para este entorno.')
     }
-    await signInWithPopup(auth, googleProvider)
+    setLoginNotificationPromptPending(true)
+    try {
+      await signInWithPopup(auth, googleProvider)
+    } catch (caught) {
+      setLoginNotificationPromptPending(false)
+      throw caught
+    }
     try {
       await recordAuthAuditEvent('LOGIN_SUCCESS')
     } catch {
@@ -157,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     if (!auth) return
+    setLoginNotificationPromptPending(false)
     try {
       await recordAuthAuditEvent('LOGOUT')
     } catch {

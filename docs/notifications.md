@@ -4,7 +4,7 @@
 
 Incorporar avisos de estado de cuenta sin acoplar la aplicación a un proveedor específico de correo o push.
 
-La aplicación trabaja contra un contrato `NotificationService`. En DEV, el canal **IN_APP** ya utiliza Firestore; correo y push permanecen desacoplados para una etapa posterior.
+La aplicación trabaja contra un contrato `NotificationService`. En DEV, el canal **IN_APP** utiliza Firestore y el canal **PUSH** utiliza Firebase Cloud Messaging mediante una Cloud Function callable autenticada. El correo electrónico continúa pendiente.
 
 ## Eventos iniciales
 
@@ -18,7 +18,7 @@ La aplicación trabaja contra un contrato `NotificationService`. En DEV, el cana
 
 - `IN_APP`: centro de notificaciones dentro de CCNSA App. **Activo en DEV.**
 - `EMAIL`: correo electrónico. Pendiente de proveedor/backend.
-- `PUSH`: notificación web/móvil. Pendiente de backend para automatización, pero **la entrega real al navegador puede validarse manualmente en DEV con Firebase Cloud Messaging sin Blaze**.
+- `PUSH`: notificación web mediante Firebase Cloud Messaging. **Activo en DEV** para dispositivos registrados por el socio y entregas disparadas desde backend autenticado.
 
 Los canales de entrega se modelan por separado del evento. Un mismo evento puede generar cero, una o varias entregas según las preferencias del socio.
 
@@ -59,28 +59,22 @@ Los avisos utilizan `sourceType`, `sourceId` y `deduplicationKey` para conservar
 
 Muestra avisos persistidos, estado leído/no leído y preferencias reales. Ya no usa datos mock.
 
-## Prueba real de Web Push en DEV sin Blaze
+## Web Push en DEV
 
-La aplicación incluye un panel DEV para validar la entrega real de Firebase Cloud Messaging en un navegador compatible, sin Cloud Functions ni facturación.
+La aplicación registra dispositivos SOCIO mediante FCM y conserva suscripciones en `push_subscriptions`. El panel DEV permite diagnosticar compatibilidad y verificar destinatarios.
 
-Componentes:
+La entrega se procesa mediante la callable `deliverNotificationPushNow`, que valida el usuario llamante, la notificación canónica, preferencias del socio y dispositivos activos antes de enviar.
 
-- `public/firebase-messaging-sw.js`: service worker de FCM para el proyecto `ccnsa-web-dev`;
-- `src/notifications/webPushDev.ts`: validación de compatibilidad, permiso, registro del service worker y obtención de token de prueba;
-- `src/components/PushDevPanel.tsx`: interfaz para pegar la clave pública VAPID, activar push y copiar el token.
+Flujo actual:
 
-Procedimiento:
+1. Se registra un pago, obligación o aviso general autorizado.
+2. La notificación canónica queda confirmada en Firestore.
+3. La aplicación solicita la entrega push al backend.
+4. El backend consulta preferencias y dispositivos.
+5. FCM procesa el envío.
+6. El resultado queda registrado en `notification_deliveries` como `SENT`, `PARTIAL`, `FAILED` o `SKIPPED`.
 
-1. Firebase Console → Project settings → Cloud Messaging → Web Push certificates → generar un par de claves.
-2. Copiar solamente la **clave pública VAPID** y pegarla en el panel DEV del portal.
-3. Autorizar notificaciones del navegador y obtener el token FCM de prueba.
-4. Firebase Console → Messaging → crear notificación → `Send test message` / `Enviar mensaje de prueba`.
-5. Pegar el token FCM y enviar el test.
-6. Con la pestaña en segundo plano, validar la notificación del sistema. Con la pestaña activa, el panel muestra el payload recibido en primer plano.
-
-La clave VAPID utilizada por el cliente es pública. El token FCM identifica una instancia concreta del navegador y debe tratarse como dato técnico: se copia únicamente a Firebase Console para esta validación y no se publica.
-
-Esta prueba demuestra que **el canal push funciona**, pero no conecta todavía un pago u obligación con el envío push automático. Esa automatización requiere un componente servidor confiable.
+Un fallo de push **no revierte ni invalida** la operación financiera ni el aviso in-app.
 
 ## Modelo Firestore
 
@@ -143,9 +137,9 @@ Esto permite cambiar de proveedor de correo o push sin alterar pagos, obligacion
 
 ## Automatización pendiente
 
-Los recordatorios periódicos, estados de cuenta mensuales automáticos y envíos confiables por correo/push requieren un proceso servidor o scheduler. No se simulan como si ya existieran. Cuando se incorpore backend deberá utilizarse un patrón outbox/worker o equivalente para evitar duplicados y mantener trazabilidad.
+Los recordatorios periódicos y estados de cuenta mensuales automáticos todavía requieren un scheduler/proceso servidor. El correo electrónico también continúa pendiente de proveedor e implementación.
 
-Mientras el proyecto permanezca en Spark, la validación de push se limita al flujo manual desde Firebase Console. No se introducen Cloud Functions ni dependencias que requieran Blaze.
+Para una fase posterior, si el volumen crece, puede evaluarse un patrón outbox/worker para desacoplar aún más los eventos de negocio de sus entregas y reforzar reintentos/idempotencia.
 
 ## Seguridad
 

@@ -2,22 +2,13 @@ import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { getMessaging, getToken, isSupported } from 'firebase/messaging'
 import { db, firebaseApp } from '../lib/firebase'
 import { storedVapidKey } from './webPushDev'
+import { ensureMessagingServiceWorker } from './messagingServiceWorker'
 
 const DEVICE_SUBSCRIPTION_KEY = 'ccnsa:push:subscription-id'
 
 function requireFirebase() {
   if (!firebaseApp || !db) throw new Error('Firebase no está configurado.')
   return { app: firebaseApp, database: db }
-}
-
-async function ensureMessagingServiceWorker() {
-  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
-    throw new Error('Este navegador no dispone de Service Worker.')
-  }
-
-  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
-  await navigator.serviceWorker.ready
-  return registration
 }
 
 async function sha256(value: string) {

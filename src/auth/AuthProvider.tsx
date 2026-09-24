@@ -17,7 +17,6 @@ import {
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, firebaseConfigured } from '../lib/firebase'
 import { recordAuthAuditEvent } from '../data/authAudit'
-import { disableCurrentPushDevice, hasStoredPushDevice } from '../notifications/pushSubscriptionService'
 
 export type UserRole = 'SOCIO' | 'TESORERIA' | 'ADMIN' | 'CONSULTA'
 
@@ -182,13 +181,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await recordAuthAuditEvent('LOGOUT')
     } catch {
       // El cierre de sesión debe continuar aunque no pueda escribirse la auditoría.
-    }
-    if (profile?.role === 'SOCIO' && hasStoredPushDevice()) {
-      try {
-        await disableCurrentPushDevice()
-      } catch {
-        // Logout must still work even if the device token cleanup cannot reach Firestore.
-      }
     }
     await signOut(auth)
   }

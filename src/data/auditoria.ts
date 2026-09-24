@@ -1,4 +1,4 @@
-import { collection, getDocs, type DocumentData, type Timestamp } from 'firebase/firestore'
+import { collection, getDocs, query, where, type DocumentData, type QueryDocumentSnapshot, type Timestamp } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 export interface AuditEvent {
@@ -97,15 +97,54 @@ function humanizeAction(action: string) {
     .join(' ')
 }
 
-export async function loadAuditEvents(): Promise<AuditEvent[]> {
+export const TREASURY_AUDIT_ACTIONS = [
+  'INGRESO_CREATED',
+  'EGRESO_CREATED',
+  'INGRESO_VOIDED',
+  'EGRESO_VOIDED',
+  'ACTIVIDAD_CREATED',
+  'ACTIVIDAD_STATUS_CHANGED',
+  'ACTIVIDAD_INGRESO_CREATED',
+  'ACTIVIDAD_EGRESO_CREATED',
+  'ACTIVIDAD_MOVIMIENTO_VOIDED',
+  'ACTIVIDAD_REGISTRATION_CONFIG_UPDATED',
+  'ACTIVIDAD_REGISTRATION_ADMIN_UPDATED',
+  'ACTIVIDAD_REGISTRATION_REQUESTED',
+  'ACTIVIDAD_REGISTRATION_CANCELLED',
+  'OBLIGACION_CREATED',
+  'PAGO_CREATED',
+  'CUOTAS_PERIODO_GENERATED',
+  'CUENTA_RECONCILIADA',
+] as const
+
+export async function loadAuditEvents(role?: string, currentUid?: string): Promise<AuditEvent[]> {
   const database = requireDb()
-  const [auditSnapshot, usersSnapshot] = await Promise.all([
-    getDocs(collection(database, 'audit_log')),
-    getDocs(collection(database, 'users')),
-  ])
+
+  let auditDocs: QueryDocumentSnapshot<DocumentData>[]
+  if (role === 'TESORERIA' && currentUid) {
+    const [operationalSnapshot, ownSnapshot] = await Promise.all([
+      getDocs(query(
+        collection(database, 'audit_log'),
+        where('action', 'in', [...TREASURY_AUDIT_ACTIONS]),
+      )),
+      getDocs(query(
+        collection(database, 'audit_log'),
+        where('actorUid', '==', currentUid),
+      )),
+    ])
+    auditDocs = [...new Map(
+      [...operationalSnapshot.docs, ...ownSnapshot.docs].map((item) => [item.id, item]),
+    ).values()]
+  } else {
+    auditDocs = (await getDocs(collection(database, 'audit_log'))).docs
+  }
+
+  const usersSnapshot = role === 'TESORERIA'
+    ? null
+    : await getDocs(collection(database, 'users'))
 
   const users = new Map<string, { nombre?: string; email?: string; rol?: string }>()
-  for (const snapshot of usersSnapshot.docs) {
+  for (const snapshot of usersSnapshot?.docs ?? []) {
     const data = snapshot.data()
     users.set(snapshot.id, {
       nombre: asString(data.displayName) || asString(data.nombre) || undefined,
@@ -114,7 +153,7 @@ export async function loadAuditEvents(): Promise<AuditEvent[]> {
     })
   }
 
-  return auditSnapshot.docs
+  return auditDocs
     .map((snapshot) => {
       const data = snapshot.data()
       const action = asString(data.action) || 'EVENT'

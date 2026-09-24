@@ -28,7 +28,7 @@ ADMIN y CONSULTA ven la pista completa. TESORERIA ve eventos financieros/operati
 ### Portal del socio
 El socio puede consultar su cuenta, actividades, notificaciones y datos de perfil. Los datos institucionales no se editan desde el portal.
 
-Cuando el socio habilita notificaciones push en su dispositivo, los avisos de pago registrado y nueva obligación pueden enviarse también como notificación del sistema. Si el push falla, la operación financiera y el aviso dentro de la aplicación permanecen registrados.
+Cuando el socio habilita notificaciones push en su dispositivo, los avisos de pago registrado y nueva obligación pueden enviarse también como notificación del sistema. El dispositivo permanece registrado aunque el socio cierre sesión; para dejar de recibir avisos debe usar “Desactivar push”. Si el push falla, la operación financiera y el aviso dentro de la aplicación permanecen registrados.
 
 Al iniciar sesión, si existen notificaciones sin leer, el portal muestra un resumen breve con acceso directo al centro de notificaciones. Durante la carga inicial se muestra una pantalla institucional mientras se valida la sesión y el perfil.
 

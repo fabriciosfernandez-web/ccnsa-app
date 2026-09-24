@@ -28,5 +28,7 @@ ADMIN y CONSULTA ven la pista completa. TESORERIA ve eventos financieros/operati
 ### Portal del socio
 El socio puede consultar su cuenta, actividades, notificaciones y datos de perfil. Los datos institucionales no se editan desde el portal.
 
+Cuando el socio habilita notificaciones push en su dispositivo, los avisos de pago registrado y nueva obligación pueden enviarse también como notificación del sistema. Si el push falla, la operación financiera y el aviso dentro de la aplicación permanecen registrados.
+
 ## 4. Buenas prácticas
 No borrar ni alterar registros financieros por fuera de los flujos previstos. Usar las funciones de corrección/anulación auditables y trabajar en DEV antes de promover cambios a PROD.

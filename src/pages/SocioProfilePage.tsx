@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { loadSocio, type Socio } from '../data/socios'
+import type { Timestamp } from 'firebase/firestore'
 import './socio-profile.css'
 
 function formatDate(value?: string) {
@@ -19,6 +20,14 @@ function formatDateTime(value?: string | null) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date)
+}
+
+function formatTimestamp(value?: Timestamp) {
+  if (!value) return 'Sin registro'
+  return new Intl.DateTimeFormat('es-PY', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(value.toDate())
 }
 
 function accessProvider(providerIds: string[]) {
@@ -108,6 +117,8 @@ export function SocioProfilePage() {
                 <div><dt>Estado</dt><dd>{socio.estado}</dd></div>
                 <div><dt>Fecha de ingreso</dt><dd>{formatDate(socio.fechaIngreso)}</dd></div>
                 <div><dt>Correo de membresía</dt><dd>{membershipEmail || 'No informado'}</dd></div>
+                <div><dt>Ficha creada</dt><dd>{formatTimestamp(socio.createdAt)}</dd></div>
+                <div><dt>Última actualización</dt><dd>{formatTimestamp(socio.updatedAt)}</dd></div>
                 <div><dt>Referencia de socio</dt><dd className="socio-profile-id">{socio.id}</dd></div>
               </dl>
             </article>
@@ -136,6 +147,7 @@ export function SocioProfilePage() {
               <div className="socio-profile-actions" aria-label="Accesos del socio">
                 <Link className="button primary" to="/socio">Ver estado de cuenta</Link>
                 <Link className="button secondary" to="/socio/actividades">Ver actividades</Link>
+                <Link className="button secondary" to="/socio/notificaciones">Ver notificaciones</Link>
               </div>
             </article>
           </div>

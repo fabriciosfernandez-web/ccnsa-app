@@ -150,7 +150,9 @@ service cloud.firestore {
         && request.resource.data.socioId is string
         && request.resource.data.importe is number
         && request.resource.data.importe > 0;
-      allow update, delete: if isAdmin() || isTreasury();
+      // Los cargos se conservan como evidencia. Cualquier corrección debe
+      // implementarse mediante una operación auditable específica.
+      allow update, delete: if false;
     }
 
     match /pagos/{pagoId} {
@@ -159,7 +161,9 @@ service cloud.firestore {
         && request.resource.data.socioId is string
         && request.resource.data.importe is number
         && request.resource.data.importe > 0;
-      allow update, delete: if isAdmin() || isTreasury();
+      // Los pagos registrados no se editan ni eliminan directamente.
+      // Una futura anulación deberá conservar el original y dejar auditoría.
+      allow update, delete: if false;
     }
 
     match /aplicaciones_pago/{aplicacionId} {

@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { PushDevPanel } from '../components/PushDevPanel'
 import { getPushRecipientStatus, type PushRecipientStatus } from '../notifications/adminPushStatusService'
+import { deliverNotificationPushNow } from '../notifications/pushDeliveryService'
 import { listSocios, type Socio } from '../data/socios'
 import { appEnvironment } from '../lib/firebase'
 import {
@@ -146,7 +147,7 @@ export function AdminNotificationsDevPage() {
             <p className="legacy-kicker">Prueba funcional</p>
             <h3>Enviar aviso al portal de un socio</h3>
             <p className="muted">
-              Crea una notificación GENERAL_NOTICE real en Firestore. Si el socio tiene un dispositivo push registrado, la misma notificación queda lista para entrega por FCM.
+              Crea una notificación GENERAL_NOTICE real en Firestore y solicita inmediatamente su entrega push por FCM cuando el socio tenga el canal habilitado.
             </p>
           </div>
           <span className="status-badge success">In-app activo</span>

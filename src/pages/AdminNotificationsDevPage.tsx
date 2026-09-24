@@ -186,7 +186,7 @@ export function AdminNotificationsDevPage() {
             </span>
             <small>
               {recipientError && <span role="alert">{recipientError} </span>}
-              El push se envía únicamente a dispositivos registrados por el socio seleccionado. El token de prueba del panel técnico corresponde solo a este navegador ADMIN.
+              El push se envía únicamente a dispositivos registrados por el socio seleccionado. Si figura “Sin dispositivo”, iniciá sesión como ese socio en el equipo que recibirá los avisos, entrá a Notificaciones y activá push. Cerrar sesión no elimina el registro del dispositivo.
             </small>
           </div>
 

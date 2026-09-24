@@ -1,5 +1,6 @@
 import { getMessaging, getToken, isSupported, onMessage, type MessagePayload } from 'firebase/messaging'
 import { appEnvironment, firebaseApp } from '../lib/firebase'
+import { ensureMessagingServiceWorker } from './messagingServiceWorker'
 
 const STORAGE_KEY = 'ccnsa:dev:vapid-key'
 
@@ -39,16 +40,6 @@ export async function inspectPushSupport(): Promise<PushSetupState> {
     permission: notificationAvailable ? Notification.permission : 'unavailable',
     secureContext,
   }
-}
-
-async function ensureMessagingServiceWorker() {
-  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
-    throw new Error('Este navegador no dispone de Service Worker.')
-  }
-
-  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
-  await navigator.serviceWorker.ready
-  return registration
 }
 
 export async function registerPushForManualTest(vapidKey: string) {

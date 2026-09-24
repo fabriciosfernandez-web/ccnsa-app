@@ -28,6 +28,7 @@ Crear, después de registrar la Web App de producción:
 - `VITE_FIREBASE_STORAGE_BUCKET_PROD`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID_PROD`
 - `VITE_FIREBASE_APP_ID_PROD`
+- `VITE_FIREBASE_VAPID_KEY_PROD` (si se habilita Web Push en PROD)
 
 Secret requerido:
 

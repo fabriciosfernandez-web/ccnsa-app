@@ -36,7 +36,7 @@ jobs:
         run: npm --prefix functions test
 
       - name: Deploy callable Functions to DEV
-        run: npx --yes firebase-tools@latest deploy --only functions:listUserAccessAccounts,functions:updateUserAccess,functions:registerForActivity,functions:recordAuthEvent,functions:getPushRecipientStatus --project ccnsa-web-dev --non-interactive
+        run: npx --yes firebase-tools@latest deploy --only functions:listUserAccessAccounts,functions:updateUserAccess,functions:registerForActivity,functions:recordAuthEvent,functions:getPushRecipientStatus,functions:deliverNotificationPushNow --project ccnsa-web-dev --non-interactive
         continue-on-error: true
 
       - name: Set Functions artifact cleanup policy

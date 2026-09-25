@@ -112,7 +112,7 @@ export function LoginPage() {
           </button>
         </form>
 
-        <p className="legacy-login-footnote">Centro Cultural Nuestra Señora de la Asunción</p>
+        <p className="legacy-login-footnote">🔒 Conexión segura · CCNSA</p>
       </section>
     </div>
   )

@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_APP_ENV: dev
+      VITE_BUILD_SHA: ${{ github.sha }}
+      VITE_BUILD_RUN: ${{ github.run_number }}
       VITE_FIREBASE_VAPID_KEY: BON-WbShWqB7yF_doLK1yunzkH3G0xakCbhavPDVWxcZY0fhGB1rmWekbhJBGLWYe-uTA4s-7Ti1kx6fDzMt1ZM
     steps:
       - uses: actions/checkout@v4

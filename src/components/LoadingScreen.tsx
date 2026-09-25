@@ -17,6 +17,7 @@ export function LoadingScreen({ message = 'Cargando tu acceso…' }: LoadingScre
       <div className="ccnsa-loading-bar" aria-hidden="true">
         <span />
       </div>
+      <small className="ccnsa-loading-security">🔒 Conexión segura · CCNSA</small>
     </div>
   )
 }

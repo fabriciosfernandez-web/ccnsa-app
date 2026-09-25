@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { LOGIN_NOTIFICATION_PROMPT_KEY, useAuth, userProfileContextLabel } from '../auth/AuthProvider'
 import { appEnvironment } from '../lib/firebase'
+import { buildLabel } from '../buildInfo'
 import { subscribeNotificationsForSocio } from '../notifications/firestoreNotificationService'
 import { subscribeForegroundMessages } from '../notifications/webPushDev'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
@@ -207,8 +208,9 @@ export function AppShell() {
         </div>
 
         {appEnvironment === 'dev' && (
-          <div className="environment-chip" title="Firebase DEV · Datos de prueba">
-            DEV · Entorno de prueba
+          <div className="environment-chip" title={`Firebase DEV · Datos de prueba · ${buildLabel}`}>
+            <strong>DEV · Entorno de prueba</strong>
+            <small>{buildLabel}</small>
           </div>
         )}
 

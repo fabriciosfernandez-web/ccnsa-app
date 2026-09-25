@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_APP_ENV: dev
+      VITE_BUILD_SHA: ${{ github.sha }}
+      VITE_BUILD_RUN: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
 

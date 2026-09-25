@@ -202,13 +202,17 @@
   background: rgba(255, 255, 255, 0.035);
 }
 
-.environment-chip strong {
-  font-size: 0.7rem;
+.environment-chip-title {
+  color: #d8e1e8;
+  font-size: 0.68rem;
+  font-weight: 800;
   letter-spacing: 0.045em;
+  text-transform: uppercase;
 }
 
-.environment-chip small {
+.environment-chip-build {
   color: #91a4b3;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.62rem;
+  text-transform: none;
 }

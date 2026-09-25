@@ -1,21 +1,53 @@
 .ccnsa-loading-screen {
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
   display: grid;
   place-items: center;
   align-content: center;
   gap: 18px;
+  overflow: hidden;
   padding: 24px;
   color: #f4f1e9;
   text-align: center;
+  background: #0c1925;
+}
+
+.ccnsa-loading-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Pante%C3%B3n_Nacional_de_los_H%C3%A9roes_de_Asunci%C3%B3n%2C_Paraguay.jpg/1280px-Pante%C3%B3n_Nacional_de_los_H%C3%A9roes_de_Asunci%C3%B3n%2C_Paraguay.jpg');
+  background-size: cover;
+  background-position: center 42%;
+  filter: grayscale(100%) saturate(55%) contrast(92%) brightness(72%);
+  opacity: 0.34;
+  transform: scale(1.015);
+}
+
+.ccnsa-loading-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background:
-    radial-gradient(circle at 50% 34%, rgba(197, 164, 90, 0.13), transparent 26%),
-    linear-gradient(150deg, #0c1925 0%, #10283a 52%, #0a1721 100%);
+    radial-gradient(circle at 50% 42%, rgba(197, 164, 90, 0.14), transparent 31%),
+    linear-gradient(150deg, rgba(7, 20, 31, 0.78) 0%, rgba(16, 40, 58, 0.72) 48%, rgba(7, 18, 27, 0.86) 100%);
+}
+
+.ccnsa-loading-mark,
+.ccnsa-loading-copy,
+.ccnsa-loading-bar {
+  position: relative;
+  z-index: 1;
 }
 
 .ccnsa-loading-mark {
-  position: relative;
-  width: 108px;
-  height: 108px;
+  width: 112px;
+  height: 112px;
   display: grid;
   place-items: center;
 }
@@ -23,46 +55,51 @@
 .ccnsa-loading-mark img {
   position: relative;
   z-index: 2;
-  width: 82px;
-  height: 82px;
-  object-fit: contain;
-  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.28));
-  animation: ccnsa-logo-breathe 1.7s ease-in-out infinite;
+  width: 92px;
+  height: 92px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid #c5a45a;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.34),
+    0 0 0 4px rgba(197, 164, 90, 0.09);
+  animation: ccnsa-logo-breathe 1.8s ease-in-out infinite;
 }
 
 .ccnsa-loading-halo {
   position: absolute;
-  inset: 0;
-  border: 1px solid rgba(197, 164, 90, 0.34);
+  inset: 1px;
+  border: 1px solid rgba(197, 164, 90, 0.28);
   border-radius: 50%;
-  box-shadow: 0 0 0 8px rgba(197, 164, 90, 0.035);
-  animation: ccnsa-halo 1.7s ease-in-out infinite;
+  box-shadow: 0 0 28px rgba(197, 164, 90, 0.12);
+  animation: ccnsa-halo 1.8s ease-in-out infinite;
 }
 
 .ccnsa-loading-copy {
   display: grid;
   gap: 3px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
 }
 
 .ccnsa-loading-copy > span {
-  color: #c8d4dd;
-  font-size: 0.72rem;
+  color: #d2dbe2;
+  font-size: 0.7rem;
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.17em;
   text-transform: uppercase;
 }
 
 .ccnsa-loading-copy > strong {
   color: #fff;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.55rem;
+  font-size: 1.7rem;
   letter-spacing: 0.08em;
 }
 
 .ccnsa-loading-copy > small {
-  margin-top: 5px;
-  color: #aebbc6;
-  font-size: 0.82rem;
+  margin-top: 6px;
+  color: #c1ccd5;
+  font-size: 0.84rem;
 }
 
 .ccnsa-loading-bar {
@@ -70,7 +107,8 @@
   height: 3px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.11);
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.12);
 }
 
 .ccnsa-loading-bar span {
@@ -83,18 +121,45 @@
 }
 
 @keyframes ccnsa-logo-breathe {
-  0%, 100% { transform: scale(0.97); opacity: 0.88; }
-  50% { transform: scale(1.03); opacity: 1; }
+  0%, 100% { transform: scale(0.985); opacity: 0.92; }
+  50% { transform: scale(1.025); opacity: 1; }
 }
 
 @keyframes ccnsa-halo {
-  0%, 100% { transform: scale(0.92); opacity: 0.35; }
-  50% { transform: scale(1.04); opacity: 0.9; }
+  0%, 100% { transform: scale(0.94); opacity: 0.28; }
+  50% { transform: scale(1.035); opacity: 0.8; }
 }
 
 @keyframes ccnsa-loading-slide {
   0% { transform: translateX(-130%); }
   100% { transform: translateX(340%); }
+}
+
+@media (max-width: 560px) {
+  .ccnsa-loading-screen::before {
+    background-position: 50% center;
+    opacity: 0.29;
+  }
+
+  .ccnsa-loading-screen::after {
+    background:
+      radial-gradient(circle at 50% 42%, rgba(197, 164, 90, 0.12), transparent 29%),
+      linear-gradient(180deg, rgba(7, 20, 31, 0.82) 0%, rgba(12, 31, 45, 0.76) 48%, rgba(7, 18, 27, 0.88) 100%);
+  }
+
+  .ccnsa-loading-mark {
+    width: 104px;
+    height: 104px;
+  }
+
+  .ccnsa-loading-mark img {
+    width: 84px;
+    height: 84px;
+  }
+
+  .ccnsa-loading-copy > strong {
+    font-size: 1.55rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -2,7 +2,7 @@ interface LoadingScreenProps {
   message?: string
 }
 
-export function LoadingScreen({ message = 'Preparando tu sesión…' }: LoadingScreenProps) {
+export function LoadingScreen({ message = 'Cargando tu acceso…' }: LoadingScreenProps) {
   return (
     <div className="ccnsa-loading-screen" role="status" aria-live="polite">
       <div className="ccnsa-loading-mark" aria-hidden="true">

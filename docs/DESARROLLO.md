@@ -30,3 +30,9 @@ Un módulo se considera listo para PROD cuando compila, despliega, respeta permi
 
 ## Documentación
 Actualizar este archivo cuando cambie la arquitectura, metodología o controles; actualizar `MANUAL_USUARIO.md` cuando cambie el comportamiento visible para usuarios.
+
+
+## Trazabilidad técnica y resiliencia
+- Los builds publicados exponen número de ejecución y hash corto del commit para identificar exactamente la versión probada.
+- La aplicación cuenta con una pantalla global de error para fallos inesperados de renderizado, runtime o promesas no manejadas.
+- El fallback permite reintentar o volver al inicio y muestra la referencia del build sin exponer stack traces al usuario.

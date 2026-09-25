@@ -21,6 +21,8 @@ jobs:
     environment: production
     env:
       VITE_APP_ENV: prod
+      VITE_BUILD_SHA: ${{ github.sha }}
+      VITE_BUILD_RUN: ${{ github.run_number }}
       VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY_PROD }}
       VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN_PROD }}
       VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID_PROD }}

@@ -56,6 +56,9 @@ const AUDIT_LABELS: Record<string, string> = {
   EGRESO_CREATED: 'Egreso registrado',
   INGRESO_VOIDED: 'Ingreso anulado',
   EGRESO_VOIDED: 'Egreso anulado',
+  ACTIVIDAD_INGRESO_CREATED: 'Ingreso de actividad registrado',
+  ACTIVIDAD_EGRESO_CREATED: 'Egreso de actividad registrado',
+  ACTIVIDAD_MOVIMIENTO_VOIDED: 'Movimiento de actividad anulado',
 }
 
 interface FinanceMovement {
@@ -190,28 +193,36 @@ export function AdminFinanzasPage() {
         recordId: item.id,
         fecha: item.fecha,
         tipo: 'INGRESO' as const,
-        origen: 'Ingreso manual',
+        origen: item.origen === 'ACTIVIDAD'
+          ? `Actividad · ${item.actividadNombre ?? 'Actividad'}`
+          : 'Ingreso manual',
         concepto: item.concepto,
-        categoria: item.categoria,
+        categoria: item.origen === 'ACTIVIDAD' && item.subcategoriaActividad
+          ? `ACTIVIDAD / ${item.subcategoriaActividad}`
+          : item.categoria,
         importe: item.importe,
         referencia: item.referencia ?? '',
         estado: item.estado,
         anulacionMotivo: item.anulacionMotivo,
-        anulable: true,
+        anulable: item.origen !== 'ACTIVIDAD',
       })),
       ...snapshot.egresos.map((item) => ({
         id: `egreso-${item.id}`,
         recordId: item.id,
         fecha: item.fecha,
         tipo: 'EGRESO' as const,
-        origen: 'Egreso',
+        origen: item.origen === 'ACTIVIDAD'
+          ? `Actividad · ${item.actividadNombre ?? 'Actividad'}`
+          : 'Egreso manual',
         concepto: item.concepto,
-        categoria: item.categoria,
+        categoria: item.origen === 'ACTIVIDAD' && item.subcategoriaActividad
+          ? `ACTIVIDAD / ${item.subcategoriaActividad}`
+          : item.categoria,
         importe: item.importe,
         referencia: item.referencia ?? '',
         estado: item.estado,
         anulacionMotivo: item.anulacionMotivo,
-        anulable: true,
+        anulable: item.origen !== 'ACTIVIDAD',
       })),
     ].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id))
   }, [snapshot])
@@ -351,7 +362,7 @@ export function AdminFinanzasPage() {
       </header>
 
       <div className="notice socios-success finance-safety finance-no-print">
-        <strong>Control anti-duplicación:</strong> una cuota o aporte cobrado a un socio ya existe en <code>pagos</code> y entra automáticamente al balance. No debe cargarse otra vez como ingreso manual.
+        <strong>Control anti-duplicación:</strong> los cobros de socios y los movimientos registrados desde Actividades ya entran automáticamente al balance. No deben volver a cargarse como movimientos manuales. Los movimientos de actividad se anulan únicamente desde Actividades para mantener ambas vistas sincronizadas.
       </div>
 
       {error && <div className="notice error finance-no-print"><strong>Finanzas.</strong> {error}</div>}

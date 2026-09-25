@@ -7,10 +7,21 @@ import {
   setTarifaCuotaActiva,
   type TarifaCuota,
 } from '../data/tarifas'
+import {
+  analizarConciliacionMasiva,
+  conciliarRegistrosPreviosMasivo,
+  type ConciliacionMasivaPreview,
+} from '../data/reconciliacion'
 import './admin-cuotas.css'
 
 const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY')}`
-const currentPeriod = new Date().toISOString().slice(0, 7)
+
+function localPeriod() {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 7)
+}
+
+const currentPeriod = localPeriod()
 
 function devErrorMessage(prefix: string, error: unknown) {
   if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
@@ -27,6 +38,8 @@ export function AdminCuotasPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [reconciliationPreview, setReconciliationPreview] = useState<ConciliacionMasivaPreview | null>(null)
+  const [reconciliationBusy, setReconciliationBusy] = useState<'PREVIEW' | 'RUN' | null>(null)
 
   async function loadTarifas() {
     try {
@@ -123,6 +136,42 @@ export function AdminCuotasPage() {
     }
   }
 
+  async function previewBulkReconciliation() {
+    if (!canGenerate || reconciliationBusy) return
+    try {
+      setReconciliationBusy('PREVIEW')
+      setError('')
+      setMessage('')
+      setReconciliationPreview(await analizarConciliacionMasiva())
+    } catch (caught) {
+      console.error('Error previewing bulk reconciliation', caught)
+      setError(devErrorMessage('No se pudo analizar la conciliación masiva.', caught))
+    } finally {
+      setReconciliationBusy(null)
+    }
+  }
+
+  async function runBulkReconciliation() {
+    if (!user || !canGenerate || !reconciliationPreview || reconciliationPreview.totalSocios === 0 || reconciliationBusy) return
+    try {
+      setReconciliationBusy('RUN')
+      setError('')
+      setMessage('')
+      const result = await conciliarRegistrosPreviosMasivo(user.uid)
+      setMessage(
+        result.errores.length === 0
+          ? `Conciliación masiva completada: ${result.sociosProcesados} socio(s), ${result.cantidadAplicaciones} aplicación(es) y ${money(result.importeConciliado)} conciliados.`
+          : `Conciliación parcial: ${result.sociosProcesados} socio(s) procesados y ${result.errores.length} error(es). Revisá antes de reintentar.`,
+      )
+      setReconciliationPreview(await analizarConciliacionMasiva())
+    } catch (caught) {
+      console.error('Error running bulk reconciliation', caught)
+      setError(devErrorMessage('No se pudo completar la conciliación masiva.', caught))
+    } finally {
+      setReconciliationBusy(null)
+    }
+  }
+
   const activeCount = tarifas.filter((tarifa) => tarifa.activa).length
 
   return (
@@ -202,10 +251,56 @@ export function AdminCuotasPage() {
           </button>
           <small className="muted">Los saldos a favor existentes se aplican automáticamente al crear cada obligación.</small>
           <div className="cuotas-info-box">
-            En el plan Spark no usamos todavía tareas programadas de servidor. Esta ejecución controlada evita costos y permite revisar el resultado antes de automatizarla en una fase posterior.
+            La generación se mantiene manual y controlada para evitar ejecuciones automáticas innecesarias, contener costos y permitir revisar el resultado antes de automatizarla en una fase posterior.
           </div>
         </form>
       </div>
+
+      <article className="panel cuotas-table-panel">
+        <div className="panel-heading-row">
+          <div>
+            <p className="legacy-kicker">Conciliación histórica</p>
+            <h3>Aplicar saldos a favor pendientes</h3>
+            <p className="muted">Primero analiza todas las cuentas sin escribir datos. Si detecta pagos disponibles y obligaciones pendientes del mismo socio, muestra el impacto antes de ejecutar.</p>
+          </div>
+          <span className="status-badge neutral">{reconciliationPreview ? `${reconciliationPreview.totalSocios} cuenta(s)` : 'Sin analizar'}</span>
+        </div>
+
+        <div className="cuotas-info-box">
+          La conciliación no modifica pagos ni obligaciones originales: crea aplicaciones entre registros existentes y deja trazabilidad en <code>audit_log</code>.
+        </div>
+
+        {reconciliationPreview && (
+          <div className="metric-grid legacy-metric-grid cuotas-metrics">
+            <article className="metric-card legacy-metric-card">
+              <span>Socios a conciliar</span>
+              <strong>{reconciliationPreview.totalSocios}</strong>
+              <small>Cuentas con deuda y saldo a favor compatibles.</small>
+            </article>
+            <article className="metric-card legacy-metric-card">
+              <span>Aplicaciones previstas</span>
+              <strong>{reconciliationPreview.totalAplicaciones}</strong>
+              <small>Relaciones pago → obligación que se crearían.</small>
+            </article>
+            <article className="metric-card legacy-metric-card">
+              <span>Importe conciliable</span>
+              <strong>{money(reconciliationPreview.importeConciliable)}</strong>
+              <small>Importe total que dejaría de figurar simultáneamente como deuda y crédito.</small>
+            </article>
+          </div>
+        )}
+
+        <div className="panel-heading-row">
+          <button className="button secondary" type="button" onClick={() => void previewBulkReconciliation()} disabled={!canGenerate || Boolean(reconciliationBusy)}>
+            {reconciliationBusy === 'PREVIEW' ? 'Analizando…' : reconciliationPreview ? 'Actualizar análisis' : 'Analizar conciliación'}
+          </button>
+          {reconciliationPreview && reconciliationPreview.totalSocios > 0 && (
+            <button className="button primary" type="button" onClick={() => void runBulkReconciliation()} disabled={!canGenerate || Boolean(reconciliationBusy)}>
+              {reconciliationBusy === 'RUN' ? 'Conciliando…' : `Conciliar ${reconciliationPreview.totalSocios} socio(s)`}
+            </button>
+          )}
+        </div>
+      </article>
 
       <article className="panel cuotas-table-panel">
         <div className="panel-heading-row">

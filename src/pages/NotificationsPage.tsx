@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
-import { PushDevPanel } from '../components/PushDevPanel'
+import {
+  disableCurrentPushDevice,
+  registerPushDevice,
+} from '../notifications/pushSubscriptionService'
 import {
   firestoreNotificationService,
   markAllNotificationsAsRead,
@@ -28,14 +31,22 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'No fue posible completar la operación.'
 }
 
+function actionLabel(actionUrl?: string) {
+  if (actionUrl === '/socio/notificaciones') return 'Abrir notificaciones'
+  if (actionUrl === '/socio/actividades') return 'Ver actividad'
+  return 'Ver estado de cuenta'
+}
+
 export function NotificationsPage() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const socioId = profile?.socioId
   const [items, setItems] = useState<AccountNotification[]>([])
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null)
   const [loading, setLoading] = useState(true)
   const [savingPreference, setSavingPreference] = useState<string | null>(null)
   const [markingAll, setMarkingAll] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [devicePushEnabled, setDevicePushEnabled] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -71,6 +82,27 @@ export function NotificationsPage() {
     () => items.filter((item) => item.status === 'UNREAD').length,
     [items],
   )
+
+  useEffect(() => {
+    setDevicePushEnabled(false)
+    if (!preferences?.push || !socioId || !user || typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    let active = true
+
+    async function revalidatePushDevice() {
+      try {
+        await registerPushDevice(socioId!, user!.uid)
+        if (active) setDevicePushEnabled(true)
+      } catch (caught) {
+        if (active) {
+          setDevicePushEnabled(false)
+          setError(`No se pudo verificar el registro push: ${errorMessage(caught)}`)
+        }
+      }
+    }
+
+    void revalidatePushDevice()
+    return () => { active = false }
+  }, [preferences?.push, socioId, user])
 
   async function markAsRead(notificationId: string) {
     if (!socioId) return
@@ -112,6 +144,40 @@ export function NotificationsPage() {
     }
   }
 
+  async function enablePushForDevice() {
+    if (!preferences || !socioId || !user) return
+    setPushBusy(true)
+    setError('')
+    try {
+      await registerPushDevice(socioId, user.uid)
+      const next = { ...preferences, push: true }
+      await firestoreNotificationService.savePreferences(next)
+      setPreferences(next)
+      setDevicePushEnabled(true)
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
+  async function disablePushForDevice() {
+    if (!preferences || !socioId || !user) return
+    setPushBusy(true)
+    setError('')
+    try {
+      const next = { ...preferences, push: false }
+      await firestoreNotificationService.savePreferences(next)
+      await disableCurrentPushDevice()
+      setPreferences(next)
+      setDevicePushEnabled(false)
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
   return (
     <section className="page-stack legacy-page-stack">
       <header className="legacy-page-header">
@@ -122,7 +188,7 @@ export function NotificationsPage() {
             {loading
               ? 'Cargando tus avisos…'
               : unreadCount === 0
-                ? 'No tenés notificaciones pendientes.'
+                ? 'No tenés notificaciones sin leer.'
                 : `Tenés ${unreadCount} notificación${unreadCount === 1 ? '' : 'es'} sin leer.`}
           </p>
         </div>
@@ -133,7 +199,7 @@ export function NotificationsPage() {
             </button>
           )}
           <span className={`status-badge ${unreadCount > 0 ? 'danger' : 'success'}`}>
-            {loading ? 'Cargando' : unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día'}
+            {loading ? 'Cargando' : unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo leído'}
           </span>
         </div>
       </header>
@@ -168,13 +234,11 @@ export function NotificationsPage() {
                   Marcar como leída
                 </button>
               )}
-              {item.actionUrl && <Link className="button secondary inline-button" to={item.actionUrl}>Ver estado de cuenta</Link>}
+              {item.actionUrl && <Link className="button secondary inline-button" to={item.actionUrl}>{actionLabel(item.actionUrl)}</Link>}
             </div>
           </article>
         ))}
       </section>
-
-      <PushDevPanel />
 
       {preferences && (
         <section className="panel legacy-panel notification-preferences">
@@ -182,7 +246,7 @@ export function NotificationsPage() {
             <p className="legacy-kicker">Preferencias</p>
             <h3>Qué avisos querés recibir</h3>
             <p className="muted">
-              Las preferencias se guardan en tu perfil. Los avisos dentro de la aplicación son reales y se actualizan en tiempo real. En DEV también podés validar un push real de navegador mediante Firebase Cloud Messaging; el envío automático de push y correo queda para una etapa con backend.
+              Las preferencias se guardan en tu perfil. Los avisos dentro de la aplicación se actualizan en tiempo real y, cuando registrás este dispositivo, también pueden mostrarse como notificaciones del sistema. El correo electrónico permanece pendiente para una etapa posterior.
             </p>
           </div>
 
@@ -204,7 +268,21 @@ export function NotificationsPage() {
           </label>
 
           <div className="cuotas-info-box">
-            <strong>Sin Blaze.</strong> La prueba push de DEV utiliza FCM y el compositor de Firebase Console, por lo que no requiere Cloud Functions. Correo y automatización de push no se simulan mientras no exista un backend gratuito adecuado.
+            <strong>Notificaciones en este dispositivo.</strong>{' '}
+            {preferences.push && devicePushEnabled
+              ? 'Este dispositivo está registrado para recibir avisos aunque CCNSA no esté abierta.'
+              : 'Podés registrar este dispositivo para recibir avisos del sistema cuando la aplicación esté en segundo plano o cerrada.'}
+            <div className="socio-actions" style={{ marginTop: 10 }}>
+              {preferences.push && devicePushEnabled ? (
+                <button className="button secondary inline-button" type="button" onClick={() => void disablePushForDevice()} disabled={pushBusy}>
+                  {pushBusy ? 'Actualizando…' : 'Desactivar push'}
+                </button>
+              ) : (
+                <button className="button primary inline-button" type="button" onClick={() => void enablePushForDevice()} disabled={pushBusy}>
+                  {pushBusy ? 'Activando…' : 'Activar push en este dispositivo'}
+                </button>
+              )}
+            </div>
           </div>
         </section>
       )}

@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useAuth, userProfileContextLabel } from '../auth/AuthProvider'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { LOGIN_NOTIFICATION_PROMPT_KEY, useAuth, userProfileContextLabel } from '../auth/AuthProvider'
 import { appEnvironment } from '../lib/firebase'
+import { buildLabel } from '../buildInfo'
 import { subscribeNotificationsForSocio } from '../notifications/firestoreNotificationService'
+import { subscribeForegroundMessages } from '../notifications/webPushDev'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
 
 type NavIconName = 'dashboard' | 'users' | 'finance' | 'activity' | 'settings' | 'rules' | 'audit' | 'migration' | 'check' | 'account' | 'bell'
@@ -37,27 +39,44 @@ function navItem(to: string, label: string, icon: NavIconName, end = false, badg
 }
 
 function routeMeta(pathname: string) {
+  if (pathname.startsWith('/admin/notificaciones')) return { section: 'Herramientas DEV', title: 'Notificaciones' }
   if (pathname.startsWith('/admin/migracion/preflight')) return { section: 'Herramientas DEV', title: 'Preflight de migración' }
   if (pathname.startsWith('/admin/migracion')) return { section: 'Herramientas DEV', title: 'Migración 2026' }
   if (pathname.startsWith('/admin/auditoria')) return { section: 'Control', title: 'Auditoría' }
   if (pathname.startsWith('/admin/reglas-cobro')) return { section: 'Configuración', title: 'Reglas especiales' }
+  if (pathname.startsWith('/admin/usuarios')) return { section: 'Configuración', title: 'Usuarios y accesos' }
   if (pathname.startsWith('/admin/cuotas')) return { section: 'Configuración', title: 'Tarifas y generación' }
   if (pathname.startsWith('/admin/actividades')) return { section: 'Gestión', title: 'Actividades' }
   if (pathname.startsWith('/admin/finanzas')) return { section: 'Gestión', title: 'Finanzas' }
   if (pathname.startsWith('/admin/socios')) return { section: 'Gestión', title: 'Socios y cuotas' }
   if (pathname === '/admin') return { section: 'Gestión institucional', title: 'Panel de gestión' }
+  if (pathname.startsWith('/socio/inicio')) return { section: 'Portal del socio', title: 'Inicio' }
+  if (pathname.startsWith('/socio/actividades')) return { section: 'Portal del socio', title: 'Actividades' }
   if (pathname.startsWith('/socio/notificaciones')) return { section: 'Portal del socio', title: 'Notificaciones' }
+  if (pathname.startsWith('/socio/perfil')) return { section: 'Portal del socio', title: 'Mi perfil' }
   return { section: 'Portal del socio', title: 'Mi estado de cuenta' }
 }
 
 export function AppShell() {
   const { profile, logout } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const { preference, setPreference } = useTheme()
   const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [loginNotificationPrompt, setLoginNotificationPrompt] = useState<{
+    count: number
+    title: string
+    message: string
+  } | null>(null)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const meta = routeMeta(location.pathname)
   const configuredLogo = String(import.meta.env.VITE_BRAND_LOGO_URL || '').trim()
+  const brandLogo = configuredLogo || '/ccnsa-logo.webp'
   const profileContext = userProfileContextLabel(profile)
+
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [location.pathname])
 
   useEffect(() => {
     if (profile?.role !== 'SOCIO' || !profile.socioId) {
@@ -67,27 +86,131 @@ export function AppShell() {
 
     return subscribeNotificationsForSocio(
       profile.socioId,
-      (items) => setUnreadNotifications(items.filter((item) => item.status === 'UNREAD').length),
+      (items) => {
+        const unread = items.filter((item) => item.status === 'UNREAD')
+        setUnreadNotifications(unread.length)
+
+        const promptState = typeof window !== 'undefined'
+          ? window.sessionStorage.getItem(LOGIN_NOTIFICATION_PROMPT_KEY)
+          : null
+
+        if (promptState && unread.length === 0) {
+          window.sessionStorage.removeItem(LOGIN_NOTIFICATION_PROMPT_KEY)
+        } else if (promptState && unread.length > 0) {
+          window.sessionStorage.setItem(LOGIN_NOTIFICATION_PROMPT_KEY, 'displaying')
+          setLoginNotificationPrompt({
+            count: unread.length,
+            title: unread[0].title,
+            message: unread[0].message,
+          })
+        }
+      },
       () => setUnreadNotifications(0),
     )
   }, [profile?.role, profile?.socioId])
 
+  // FCM foreground for active socio session: Firebase does not route foreground
+  // messages through onBackgroundMessage, so surface them explicitly.
+  useEffect(() => {
+    if (profile?.role !== 'SOCIO') return
+
+    let active = true
+    let unsubscribe: (() => void) | undefined
+
+    void subscribeForegroundMessages(async (payload) => {
+      if (!active || Notification.permission !== 'granted') return
+      const title = payload.notification?.title || payload.data?.title || 'CCNSA'
+      const body = payload.notification?.body || payload.data?.body || 'Tenés una nueva notificación.'
+      const actionUrl = payload.data?.actionUrl || '/socio/notificaciones'
+      const notificationId = payload.data?.notificationId || Date.now().toString()
+
+      try {
+        const registration = await navigator.serviceWorker.ready
+        await registration.showNotification(title, {
+          body,
+          tag: `ccnsa-${notificationId}`,
+          data: { url: actionUrl },
+        })
+      } catch {
+        // El aviso in-app sigue disponible aunque el SO rechace el popup foreground.
+      }
+    }).then((fn) => { unsubscribe = fn })
+
+    return () => {
+      active = false
+      unsubscribe?.()
+    }
+  }, [profile?.role])
+
+  function dismissLoginNotificationPrompt() {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(LOGIN_NOTIFICATION_PROMPT_KEY)
+    }
+    setLoginNotificationPrompt(null)
+  }
+
+  function openNotificationsFromPrompt() {
+    dismissLoginNotificationPrompt()
+    navigate('/socio/notificaciones')
+  }
+
   return (
     <div className="app-shell legacy-app-shell">
-      <aside className="sidebar legacy-sidebar">
+      {loginNotificationPrompt && profile?.role === 'SOCIO' && (
+        <aside className="login-notification-toast" role="dialog" aria-live="polite" aria-label="Notificaciones pendientes">
+          <button
+            className="login-notification-close"
+            type="button"
+            aria-label="Cerrar aviso"
+            onClick={dismissLoginNotificationPrompt}
+          >
+            ×
+          </button>
+          <span className="login-notification-icon" aria-hidden="true">🔔</span>
+          <div className="login-notification-copy">
+            <small>Al ingresar a CCNSA</small>
+            <strong>
+              Tenés {loginNotificationPrompt.count} notificación{loginNotificationPrompt.count === 1 ? '' : 'es'} pendiente{loginNotificationPrompt.count === 1 ? '' : 's'}
+            </strong>
+            <p><b>{loginNotificationPrompt.title}</b> · {loginNotificationPrompt.message}</p>
+          </div>
+          <div className="login-notification-actions">
+            <button className="button secondary" type="button" onClick={dismissLoginNotificationPrompt}>Ahora no</button>
+            <button className="button primary" type="button" onClick={openNotificationsFromPrompt}>Ver notificaciones</button>
+          </div>
+        </aside>
+      )}
+      {mobileNavOpen && (
+        <button
+          className="mobile-nav-backdrop"
+          type="button"
+          aria-label="Cerrar menú"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+      <aside className={`sidebar legacy-sidebar ${mobileNavOpen ? 'mobile-open' : ''}`}>
         <div className="enterprise-brand">
-          <div className="enterprise-brand-mark" aria-hidden={!configuredLogo}>
-            {configuredLogo ? <img src={configuredLogo} alt="CCNSA" /> : 'CC'}
+          <div className="enterprise-brand-mark">
+            <img src={brandLogo} alt="Escudo de CCNSA" />
           </div>
           <div className="enterprise-brand-copy">
             <span>Centro Cultural</span>
             <strong>CCNSA</strong>
           </div>
+          <button
+            className="mobile-nav-close"
+            type="button"
+            aria-label="Cerrar menú"
+            onClick={() => setMobileNavOpen(false)}
+          >
+            ×
+          </button>
         </div>
 
         {appEnvironment === 'dev' && (
-          <div className="environment-chip" title="Firebase DEV · Datos de prueba">
-            DEV · Entorno de prueba
+          <div className="environment-chip" title={`Firebase DEV · Datos de prueba · ${buildLabel}`}>
+            <span className="environment-chip-title">DEV · Entorno de prueba</span>
+            <span className="environment-chip-build">{buildLabel}</span>
           </div>
         )}
 
@@ -95,8 +218,11 @@ export function AppShell() {
           {profile?.role === 'SOCIO' ? (
             <div className="nav-group">
               <span className="nav-group-label">Portal del socio</span>
+              {navItem('/socio/inicio', 'Inicio', 'dashboard', true)}
               {navItem('/socio', 'Mi estado de cuenta', 'account', true)}
+              {navItem('/socio/actividades', 'Actividades', 'activity')}
               {navItem('/socio/notificaciones', 'Notificaciones', 'bell', false, unreadNotifications)}
+              {navItem('/socio/perfil', 'Mi perfil', 'account')}
             </div>
           ) : (
             <>
@@ -110,6 +236,7 @@ export function AppShell() {
 
               <div className="nav-group">
                 <span className="nav-group-label">Configuración</span>
+                {profile?.role === 'ADMIN' && navItem('/admin/usuarios', 'Usuarios y accesos', 'users')}
                 {navItem('/admin/cuotas', 'Tarifas y generación', 'settings')}
                 {navItem('/admin/reglas-cobro', 'Reglas especiales', 'rules')}
               </div>
@@ -124,6 +251,7 @@ export function AppShell() {
                   <span className="nav-group-label">Herramientas DEV</span>
                   {navItem('/admin/migracion', 'Migración 2026', 'migration', true)}
                   {navItem('/admin/migracion/preflight', 'Preflight', 'check')}
+                  {navItem('/admin/notificaciones', 'Notificaciones', 'bell')}
                 </div>
               )}
             </>
@@ -142,6 +270,17 @@ export function AppShell() {
 
       <main className="main-content legacy-main-content">
         <header className="workspace-topbar">
+          <button
+            className="mobile-nav-toggle"
+            type="button"
+            aria-label="Abrir menú"
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
           <div className="workspace-heading">
             <small>{meta.section}</small>
             <strong>{meta.title}</strong>

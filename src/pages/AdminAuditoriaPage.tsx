@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { userRoleLabel } from '../auth/AuthProvider'
+import { useAuth, userRoleLabel } from '../auth/AuthProvider'
 import { AdminPageHeader } from '../components/AdminPageHeader'
 import { loadAuditEvents, type AuditEvent } from '../data/auditoria'
+import { downloadManualFirestoreSnapshot } from '../data/exportacion'
 import './admin-auditoria.css'
 
 function errorMessage(error: unknown) {
@@ -26,6 +27,10 @@ function formatExactDate(value?: { toDate: () => Date }) {
   return new Intl.DateTimeFormat('es-PY', { dateStyle: 'medium', timeStyle: 'medium' }).format(value.toDate())
 }
 
+function localIsoDate(date = new Date()) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
 function eventDetail(item: AuditEvent) {
   if (item.concepto) return item.concepto
   if (item.entity === 'ingresos') return 'Ingreso financiero'
@@ -35,6 +40,7 @@ function eventDetail(item: AuditEvent) {
   if (item.entity === 'socios') return 'Socio'
   if (item.entity === 'actividades') return 'Actividad'
   if (item.entity === 'movimientos_actividad') return 'Movimiento de actividad'
+  if (item.entity === 'auth_session') return 'Sesión de usuario'
   return item.entity || 'Evento del sistema'
 }
 
@@ -44,6 +50,7 @@ function csvCell(value: string | number) {
 }
 
 export function AdminAuditoriaPage() {
+  const { user, profile } = useAuth()
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -51,10 +58,12 @@ export function AdminAuditoriaPage() {
   const [roleFilter, setRoleFilter] = useState('TODOS')
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [snapshotExporting, setSnapshotExporting] = useState(false)
+  const [snapshotMessage, setSnapshotMessage] = useState('')
 
   useEffect(() => {
     let active = true
-    void loadAuditEvents()
+    void loadAuditEvents(profile?.role, user?.uid)
       .then((data) => {
         if (active) setEvents(data)
       })
@@ -65,7 +74,7 @@ export function AdminAuditoriaPage() {
         if (active) setLoading(false)
       })
     return () => { active = false }
-  }, [])
+  }, [profile?.role, user?.uid])
 
   const modules = useMemo(
     () => [...new Set(events.map((item) => item.modulo))].sort((a, b) => a.localeCompare(b, 'es')),
@@ -98,6 +107,7 @@ export function AdminAuditoriaPage() {
         item.socioId,
         item.periodo,
         item.motivo,
+        item.authMethod,
       ].filter(Boolean).join(' ').toLocaleLowerCase('es')
       return haystack.includes(needle)
     })
@@ -109,9 +119,25 @@ export function AdminAuditoriaPage() {
   )
 
   const todayCount = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
-    return events.filter((item) => item.createdAt?.toDate().toISOString().slice(0, 10) === today).length
+    const today = localIsoDate()
+    return events.filter((item) => item.createdAt && localIsoDate(item.createdAt.toDate()) === today).length
   }, [events])
+
+  async function exportManualSnapshot() {
+    if (!user || profile?.role !== 'ADMIN' || snapshotExporting) return
+    try {
+      setSnapshotExporting(true)
+      setSnapshotMessage('')
+      const result = await downloadManualFirestoreSnapshot(user.uid)
+      setSnapshotMessage(
+        `Snapshot manual generado: ${result.documents} documento(s) en ${result.collections} colecciones.`,
+      )
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setSnapshotExporting(false)
+    }
+  }
 
   function exportCsv() {
     const rows: (string | number)[][] = [
@@ -119,7 +145,7 @@ export function AdminAuditoriaPage() {
       ['Registro de auditoría'],
       ['Generado', new Intl.DateTimeFormat('es-PY', { dateStyle: 'short', timeStyle: 'short' }).format(new Date())],
       [],
-      ['Fecha/hora', 'Módulo', 'Acción', 'Usuario', 'Perfil / comité', 'Rol técnico', 'Email', 'UID', 'Entidad', 'ID entidad', 'Concepto', 'Importe', 'Motivo'],
+      ['Fecha/hora', 'Módulo', 'Acción', 'Usuario', 'Perfil / comité', 'Rol técnico', 'Email', 'UID', 'Método de acceso', 'Entidad', 'ID entidad', 'Concepto', 'Importe', 'Motivo'],
       ...filtered.map((item) => [
         formatExactDate(item.createdAt),
         item.modulo,
@@ -129,6 +155,7 @@ export function AdminAuditoriaPage() {
         item.actorRol ?? '',
         item.actorEmail ?? '',
         item.actorUid,
+        item.authMethod ?? '',
         item.entity,
         item.entityId,
         item.concepto ?? '',
@@ -140,7 +167,7 @@ export function AdminAuditoriaPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `ccnsa-auditoria-${new Date().toISOString().slice(0, 10)}.csv`
+    anchor.download = `ccnsa-auditoria-${localIsoDate()}.csv`
     anchor.click()
     URL.revokeObjectURL(url)
   }
@@ -150,15 +177,25 @@ export function AdminAuditoriaPage() {
       <AdminPageHeader
         eyebrow="Control y trazabilidad"
         title="Auditoría"
-        description="Registro centralizado de acciones administrativas y financieras. Los eventos son inmutables y conservan el usuario responsable de cada operación."
+        description={profile?.role === 'TESORERIA'
+          ? 'Registro de operaciones financieras y de actividades, más tus propios eventos de acceso. Los eventos son inmutables y conservan el usuario responsable.'
+          : 'Registro centralizado de accesos, acciones administrativas y financieras. Los eventos son inmutables y conservan el usuario responsable de cada operación.'}
         actions={(
-          <button className="button secondary" type="button" onClick={exportCsv} disabled={loading || filtered.length === 0}>
-            Exportar auditoría CSV
-          </button>
+          <>
+            <button className="button secondary" type="button" onClick={exportCsv} disabled={loading || filtered.length === 0}>
+              Exportar auditoría CSV
+            </button>
+            {profile?.role === 'ADMIN' && (
+              <button className="button secondary" type="button" onClick={() => void exportManualSnapshot()} disabled={snapshotExporting}>
+                {snapshotExporting ? 'Generando snapshot…' : 'Exportar snapshot JSON'}
+              </button>
+            )}
+          </>
         )}
       />
 
       {error && <div className="notice error">{error}</div>}
+      {snapshotMessage && <div className="notice socios-success">{snapshotMessage} Es una copia manual de contingencia; no reemplaza PITR ni backups administrados.</div>}
 
       <div className="metric-grid legacy-metric-grid audit-metrics">
         <article className="metric-card legacy-metric-card"><span>Eventos registrados</span><strong>{events.length}</strong><small>Historial auditable disponible.</small></article>
@@ -212,6 +249,7 @@ export function AdminAuditoriaPage() {
                             <div><span>Perfil visible</span><strong>{userRoleLabel(item.actorRol)}</strong><small>Rol técnico: {item.actorRol || '—'}</small></div>
                             <div><span>UID</span><code>{item.actorUid || '—'}</code></div>
                             <div><span>Acción técnica</span><code>{item.action}</code></div>
+                            {item.authMethod && <div><span>Método de acceso</span><strong>{item.authMethod}</strong></div>}
                             <div><span>Entidad</span><strong>{item.entity || '—'}</strong><small>{item.entityId || 'Sin ID de entidad'}</small></div>
                             {item.periodo && <div><span>Período</span><strong>{item.periodo}</strong></div>}
                             {item.socioId && <div><span>Socio ID</span><code>{item.socioId}</code></div>}

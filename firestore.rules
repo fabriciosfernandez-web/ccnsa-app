@@ -42,6 +42,36 @@ service cloud.firestore {
       return currentUser().data.socioId;
     }
 
+    function treasuryAuditActionAllowed(action) {
+      return action in [
+        'INGRESO_CREATED',
+        'EGRESO_CREATED',
+        'INGRESO_VOIDED',
+        'EGRESO_VOIDED',
+        'ACTIVIDAD_CREATED',
+        'ACTIVIDAD_STATUS_CHANGED',
+        'ACTIVIDAD_INGRESO_CREATED',
+        'ACTIVIDAD_EGRESO_CREATED',
+        'ACTIVIDAD_MOVIMIENTO_VOIDED',
+        'ACTIVIDAD_REGISTRATION_CONFIG_UPDATED',
+        'ACTIVIDAD_REGISTRATION_ADMIN_UPDATED',
+        'ACTIVIDAD_REGISTRATION_REQUESTED',
+        'ACTIVIDAD_REGISTRATION_CANCELLED',
+        'OBLIGACION_CREATED',
+        'PAGO_CREATED',
+        'CUOTAS_PERIODO_GENERATED',
+        'CUENTA_RECONCILIADA'
+      ];
+    }
+
+    function treasuryCanReadAudit() {
+      return isTreasury()
+        && (
+          resource.data.actorUid == request.auth.uid
+          || treasuryAuditActionAllowed(resource.data.action)
+        );
+    }
+
     function canCreateFinanceMovement() {
       return (isAdmin() || isTreasury())
         && request.resource.data.actorUid == request.auth.uid
@@ -90,6 +120,20 @@ service cloud.firestore {
         ]);
     }
 
+    function canUpdateActividadRegistrationConfig() {
+      return (isAdmin() || isTreasury())
+        && request.resource.data.updatedByUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'cupo',
+          'costoInscripcion',
+          'permiteAcompanantes',
+          'maxAcompanantes',
+          'updatedAt',
+          'updatedByUid',
+          'updatedByNombre'
+        ]);
+    }
+
     function canCreateActividadMovement() {
       return (isAdmin() || isTreasury())
         && request.resource.data.actorUid == request.auth.uid
@@ -121,7 +165,8 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow read: if signedIn()
+        && (request.auth.uid == uid || isAdmin() || isReadOnlyStaff());
       allow create, update, delete: if isAdmin();
     }
 
@@ -136,7 +181,9 @@ service cloud.firestore {
         && request.resource.data.socioId is string
         && request.resource.data.importe is number
         && request.resource.data.importe > 0;
-      allow update, delete: if isAdmin() || isTreasury();
+      // Los cargos se conservan como evidencia. Cualquier corrección debe
+      // implementarse mediante una operación auditable específica.
+      allow update, delete: if false;
     }
 
     match /pagos/{pagoId} {
@@ -145,7 +192,9 @@ service cloud.firestore {
         && request.resource.data.socioId is string
         && request.resource.data.importe is number
         && request.resource.data.importe > 0;
-      allow update, delete: if isAdmin() || isTreasury();
+      // Los pagos registrados no se editan ni eliminan directamente.
+      // Una futura anulación deberá conservar el original y dejar auditoría.
+      allow update, delete: if false;
     }
 
     match /aplicaciones_pago/{aplicacionId} {
@@ -175,9 +224,10 @@ service cloud.firestore {
     }
 
     match /actividades/{actividadId} {
-      allow read: if isStaff();
+      allow read: if isStaff()
+        || (isSocio() && resource.data.estado in ['PLANIFICADA', 'ACTIVA']);
       allow create: if canCreateActividad();
-      allow update: if canUpdateActividad();
+      allow update: if canUpdateActividad() || canUpdateActividadRegistrationConfig();
       allow delete: if false;
     }
 
@@ -185,6 +235,31 @@ service cloud.firestore {
       allow read: if isStaff();
       allow create: if canCreateActividadMovement();
       allow update: if canVoidActividadMovement();
+      allow delete: if false;
+    }
+
+    match /actividad_inscripciones/{inscripcionId} {
+      allow read: if isStaff()
+        || (isSocio()
+          && resource.data.socioId == currentSocioId()
+          && resource.data.uid == request.auth.uid);
+
+      // Las altas/cancelaciones del socio pasan por una Cloud Function para
+      // mantener cupos y lista de espera de forma atómica.
+      allow create: if false;
+
+      allow update: if (isAdmin() || isTreasury())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estadoPago',
+          'asistencia',
+          'updatedAt',
+          'updatedByUid',
+          'updatedByNombre'
+        ])
+        && request.resource.data.updatedByUid == request.auth.uid
+        && request.resource.data.estadoPago in ['NO_APLICA', 'PENDIENTE', 'PAGADO']
+        && request.resource.data.asistencia in ['PENDIENTE', 'PRESENTE', 'AUSENTE'];
+
       allow delete: if false;
     }
 
@@ -254,13 +329,36 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /push_subscriptions/{subscriptionId} {
+      allow read: if isSocio()
+        && resource.data.socioId == currentSocioId()
+        && resource.data.uid == request.auth.uid;
+
+      allow create: if isSocio()
+        && request.resource.data.socioId == currentSocioId()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.token is string
+        && request.resource.data.token.size() > 20
+        && request.resource.data.enabled == true;
+
+      allow update: if isSocio()
+        && resource.data.socioId == currentSocioId()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.socioId == resource.data.socioId
+        && request.resource.data.uid == resource.data.uid;
+
+      allow delete: if isSocio()
+        && resource.data.socioId == currentSocioId()
+        && resource.data.uid == request.auth.uid;
+    }
+
     match /notification_deliveries/{deliveryId} {
       allow read: if isStaff();
       allow write: if false;
     }
 
     match /audit_log/{logId} {
-      allow read: if isStaff();
+      allow read: if isAdmin() || isReadOnlyStaff() || treasuryCanReadAudit();
       allow create: if (isAdmin() || isTreasury())
         && request.resource.data.actorUid == request.auth.uid;
       allow update, delete: if false;

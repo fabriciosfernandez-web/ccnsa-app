@@ -8,6 +8,7 @@ import {
   type Firestore,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { resolveAuditActor } from './auditActor'
 import { MIGRATION_APPROVED_BASELINE_2026 } from './migrationApprovedBaseline2026'
 import type {
   MigrationDryRun2026,
@@ -137,6 +138,7 @@ export async function executeMigration2026(
   const database = requireDb()
   const actorUid = options.actorUid.trim()
   if (!actorUid) throw new Error('No hay actorUid autenticado para ejecutar la migración.')
+  const actorSnapshot = await resolveAuditActor(actorUid)
   if (!options.sourceWasRevalidatedImmediatelyBeforeExecution) {
     throw new Error('La fuente debe revalidarse inmediatamente antes de la primera escritura.')
   }
@@ -227,8 +229,8 @@ export async function executeMigration2026(
     const last = items[items.length - 1]
     const auditId = batchAuditId(plan.fingerprint, first, last)
     batch.set(doc(database, 'audit_log', auditId), {
+      ...actorSnapshot,
       action: 'MIGRATION_2026_BATCH_COMMITTED',
-      actorUid,
       migrationFingerprint: plan.fingerprint,
       planVersion: plan.planVersion,
       documentCount: items.length,
@@ -276,8 +278,8 @@ export async function executeMigration2026(
 
   const finalAudit = writeBatch(database)
   finalAudit.set(doc(database, 'audit_log', completion.id), {
+    ...actorSnapshot,
     action: 'MIGRATION_2026_COMPLETED',
-    actorUid,
     migrationFingerprint: plan.fingerprint,
     planVersion: plan.planVersion,
     totalDocuments: plan.documents.length,

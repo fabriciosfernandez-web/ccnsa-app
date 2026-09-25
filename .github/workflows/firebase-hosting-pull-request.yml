@@ -8,11 +8,18 @@ permissions:
   checks: write
   pull-requests: write
 
+concurrency:
+  group: firebase-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   build_and_preview:
     runs-on: ubuntu-latest
     env:
       VITE_APP_ENV: dev
+      VITE_BUILD_SHA: ${{ github.sha }}
+      VITE_BUILD_RUN: ${{ github.run_number }}
+      VITE_FIREBASE_VAPID_KEY: BON-WbShWqB7yF_doLK1yunzkH3G0xakCbhavPDVWxcZY0fhGB1rmWekbhJBGLWYe-uTA4s-7Ti1kx6fDzMt1ZM
     steps:
       - uses: actions/checkout@v4
 
@@ -25,6 +32,28 @@ jobs:
 
       - name: Build DEV
         run: npm run build
+
+      - name: Authenticate for Firebase DEV rules
+        id: auth_dev_rules
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCNSA_WEB_DEV }}
+
+      - name: Show Firebase deployer account
+        if: steps.auth_dev_rules.outcome == 'success'
+        run: jq -r '.client_email // .service_account_impersonation_url // "unknown"' "$GOOGLE_APPLICATION_CREDENTIALS"
+
+      - name: Deploy Firestore rules to DEV
+        if: steps.auth_dev_rules.outcome == 'success'
+        run: npx --yes firebase-tools@latest deploy --only firestore:rules --project ccnsa-web-dev --non-interactive
+
+      - name: Ensure Functions artifact cleanup policy
+        if: steps.auth_dev_rules.outcome == 'success'
+        continue-on-error: true
+        run: npx --yes firebase-tools@latest functions:artifacts:setpolicy --days 1 --location us-central1 --project ccnsa-web-dev --force
+
+      # Cloud Functions se prueban y despliegan desde firebase-functions-dev.yml
+      # únicamente cuando cambia el backend. El preview visual no redepliega contenedores.
 
       - name: Deploy preview to Firebase Hosting DEV
         uses: FirebaseExtended/action-hosting-deploy@v0

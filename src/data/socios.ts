@@ -12,6 +12,8 @@ import {
   type Timestamp,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { resolveAuditActor, type AuditActorInput } from './auditActor'
+import { deliverNotificationPushNow } from '../notifications/pushDeliveryService'
 
 export type SocioCategoria = 'SOLTERO' | 'CASADO'
 export type SocioEstado = 'ACTIVO' | 'INACTIVO'
@@ -200,8 +202,19 @@ export function buildEstadoCuenta(
   pagos: Pago[],
   aplicaciones: AplicacionPago[],
 ): EstadoCuenta {
-  const aplicadoPorObligacion = sumBy(aplicaciones, (item) => item.obligacionId, (item) => item.importe)
-  const aplicadoPorPago = sumBy(aplicaciones, (item) => item.pagoId, (item) => item.importe)
+  const pagosVigentes = new Set(
+    pagos.filter((item) => item.estado !== 'ANULADO').map((item) => item.id),
+  )
+  const obligacionesVigentes = new Set(
+    obligaciones
+      .filter((item) => item.estado !== 'ANULADA' && item.estado !== 'EXENTA')
+      .map((item) => item.id),
+  )
+  const aplicacionesVigentes = aplicaciones.filter(
+    (item) => pagosVigentes.has(item.pagoId) && obligacionesVigentes.has(item.obligacionId),
+  )
+  const aplicadoPorObligacion = sumBy(aplicacionesVigentes, (item) => item.obligacionId, (item) => item.importe)
+  const aplicadoPorPago = sumBy(aplicacionesVigentes, (item) => item.pagoId, (item) => item.importe)
 
   const obligacionesCalculadas = obligaciones.map((item) => {
     const importeAplicado = Math.min(item.importe, Math.max(0, aplicadoPorObligacion.get(item.id) ?? 0))
@@ -256,11 +269,29 @@ export async function listSocios(): Promise<Socio[]> {
   return snapshot.docs.map(mapSocio).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 }
 
+export async function loadSocio(socioId: string): Promise<Socio | null> {
+  const database = requireDb()
+  const snapshot = await getDoc(doc(database, 'socios', socioId))
+  if (!snapshot.exists()) return null
+  const data = snapshot.data()
+  return {
+    id: snapshot.id,
+    nombre: String(data.nombre ?? ''),
+    email: data.email ? String(data.email) : undefined,
+    categoria: data.categoria === 'CASADO' ? 'CASADO' : 'SOLTERO',
+    estado: data.estado === 'INACTIVO' ? 'INACTIVO' : 'ACTIVO',
+    fechaIngreso: data.fechaIngreso ? String(data.fechaIngreso) : undefined,
+    createdAt: data.createdAt as Timestamp | undefined,
+    updatedAt: data.updatedAt as Timestamp | undefined,
+  }
+}
+
 export async function createSocio(
   input: Omit<Socio, 'id' | 'createdAt' | 'updatedAt'>,
-  actorUid: string,
+  actor: AuditActorInput,
 ): Promise<string> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const socioRef = doc(collection(database, 'socios'))
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
@@ -271,7 +302,7 @@ export async function createSocio(
     updatedAt: serverTimestamp(),
   })
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'SOCIO_CREATED',
     entity: 'socios',
     entityId: socioRef.id,
@@ -366,9 +397,11 @@ export async function loadPortfolioSummary(today = new Date()): Promise<Portfoli
 
 export async function createObligacion(
   input: Omit<Obligacion, 'id' | 'createdAt' | 'updatedAt' | 'estado'> & { estado?: ObligacionEstado },
-  actorUid: string,
+  actor: AuditActorInput,
 ): Promise<RegistroConAplicacionResult> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
+  const actorUid = actorSnapshot.actorUid
   const [pagos, aplicaciones, notificationPreferences] = await Promise.all([
     listPagos(input.socioId),
     listAplicacionesPago(input.socioId),
@@ -386,6 +419,7 @@ export async function createObligacion(
   const batch = writeBatch(database)
   const estadoInicial = input.estado ?? 'PENDIENTE'
   const sinImputacion = estadoInicial === 'EXENTA' || estadoInicial === 'ANULADA'
+  let notificationId: string | null = null
   let restante = sinImputacion ? 0 : input.importe
   let aplicado = 0
   let cantidadAplicaciones = 0
@@ -417,7 +451,7 @@ export async function createObligacion(
   }
 
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'OBLIGACION_CREATED',
     entity: 'obligaciones',
     entityId: obligacionRef.id,
@@ -430,6 +464,7 @@ export async function createObligacion(
 
   if (notificationPreferences.inApp && !sinImputacion) {
     const notificationRef = doc(database, 'notifications', `obligation_${obligacionRef.id}`)
+    notificationId = notificationRef.id
     const coveredText = restante <= 0
       ? ' La obligación quedó cubierta con saldo a favor existente.'
       : aplicado > 0
@@ -454,14 +489,19 @@ export async function createObligacion(
   }
 
   await batch.commit()
+  if (notificationId) {
+    void deliverNotificationPushNow(notificationId).catch(() => undefined)
+  }
   return { id: obligacionRef.id, importeAplicado: aplicado, saldoDisponible: restante, cantidadAplicaciones }
 }
 
 export async function createPago(
   input: Omit<Pago, 'id' | 'createdAt' | 'estado'> & { estado?: PagoEstado },
-  actorUid: string,
+  actor: AuditActorInput,
 ): Promise<RegistroConAplicacionResult> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
+  const actorUid = actorSnapshot.actorUid
   const [obligaciones, aplicaciones, notificationPreferences] = await Promise.all([
     listObligaciones(input.socioId),
     listAplicacionesPago(input.socioId),
@@ -481,6 +521,7 @@ export async function createPago(
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
   const estadoInicial = input.estado ?? 'REGISTRADO'
+  let notificationId: string | null = null
   let restante = input.importe
   let aplicado = 0
   let cantidadAplicaciones = 0
@@ -511,7 +552,7 @@ export async function createPago(
   }
 
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'PAGO_CREATED',
     entity: 'pagos',
     entityId: pagoRef.id,
@@ -524,6 +565,7 @@ export async function createPago(
 
   if (estadoInicial === 'REGISTRADO' && notificationPreferences.inApp && notificationPreferences.paymentConfirmations) {
     const notificationRef = doc(database, 'notifications', `payment_${pagoRef.id}`)
+    notificationId = notificationRef.id
     const saldoText = restante > 0 ? ` Quedaron ${notificationMoney(restante)} como saldo a favor.` : ''
     batch.set(notificationRef, {
       socioId: input.socioId,
@@ -543,5 +585,8 @@ export async function createPago(
   }
 
   await batch.commit()
+  if (notificationId) {
+    void deliverNotificationPushNow(notificationId).catch(() => undefined)
+  }
   return { id: pagoRef.id, importeAplicado: aplicado, saldoDisponible: restante, cantidadAplicaciones }
 }

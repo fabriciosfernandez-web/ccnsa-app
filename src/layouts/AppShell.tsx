@@ -209,8 +209,8 @@ export function AppShell() {
 
         {appEnvironment === 'dev' && (
           <div className="environment-chip" title={`Firebase DEV · Datos de prueba · ${buildLabel}`}>
-            <strong>DEV · Entorno de prueba</strong>
-            <small>{buildLabel}</small>
+            <span className="environment-chip-title">DEV · Entorno de prueba</span>
+            <span className="environment-chip-build">{buildLabel}</span>
           </div>
         )}
 

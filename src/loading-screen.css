@@ -40,7 +40,8 @@
 
 .ccnsa-loading-mark,
 .ccnsa-loading-copy,
-.ccnsa-loading-bar {
+.ccnsa-loading-bar,
+.ccnsa-loading-security {
   position: relative;
   z-index: 1;
 }
@@ -173,4 +174,12 @@
     width: 100%;
     opacity: 0.45;
   }
+}
+
+
+.ccnsa-loading-security {
+  color: rgba(232, 237, 241, 0.68);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.22);
 }

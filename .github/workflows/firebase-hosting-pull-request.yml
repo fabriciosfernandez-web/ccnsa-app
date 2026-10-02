@@ -61,4 +61,4 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCNSA_WEB_DEV }}
           projectId: ccnsa-web-dev
-          expires: 7d
+          expires: 30d

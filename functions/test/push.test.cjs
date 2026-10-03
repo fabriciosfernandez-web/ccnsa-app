@@ -22,6 +22,11 @@ function setup({ preferences = { push: true }, subscriptions = [], sendError, re
             async set(value) {
               assert.equal(name, 'notification_deliveries')
               assert.equal(id, 'notice')
+              assert.equal(
+                Object.values(value).some((item) => item === undefined),
+                false,
+                'Firestore does not accept undefined field values',
+              )
               deliveries.push(value)
             },
           }
@@ -115,4 +120,17 @@ test('partial delivery reports error and removes only an invalid token', async (
   assert.deepEqual(h.removed, ['expired'])
   assert.equal(h.deliveries.at(-1).status, 'PARTIAL')
   assert.equal(h.deliveries.at(-1).reason, 'messaging/registration-token-not-registered')
+})
+
+
+test('successful delivery never persists undefined fields', async () => {
+  const h = setup({ subscriptions: [
+    { socioId: 'demo', enabled: true, token: 'demo-token' },
+  ] })
+  await h.run()
+  assert.equal(h.deliveries.at(-1).status, 'SENT')
+  assert.equal(
+    Object.values(h.deliveries.at(-1)).some((item) => item === undefined),
+    false,
+  )
 })

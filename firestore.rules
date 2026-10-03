@@ -357,6 +357,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Outbox transaccional de correo. Los documentos son creados únicamente
+    // por backend confiable (Admin SDK / Firebase Extension).
+    match /mail/{mailId} {
+      allow read: if isAdmin() || isTreasury();
+      allow create, update, delete: if false;
+    }
+
     match /audit_log/{logId} {
       allow read: if isAdmin() || isReadOnlyStaff() || treasuryCanReadAudit();
       allow create: if (isAdmin() || isTreasury())

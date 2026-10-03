@@ -246,7 +246,7 @@ export function NotificationsPage() {
             <p className="legacy-kicker">Preferencias</p>
             <h3>Qué avisos querés recibir</h3>
             <p className="muted">
-              Las preferencias se guardan en tu perfil. Los avisos dentro de la aplicación se actualizan en tiempo real y, cuando registrás este dispositivo, también pueden mostrarse como notificaciones del sistema. El correo electrónico permanece pendiente para una etapa posterior.
+              Las preferencias se guardan en tu perfil. Los avisos dentro de la aplicación se actualizan en tiempo real y, cuando registrás este dispositivo, también pueden mostrarse como notificaciones del sistema. Los avisos financieros esenciales también se enviarán al email registrado en tu ficha cuando el canal institucional de correo esté habilitado.
             </p>
           </div>
 

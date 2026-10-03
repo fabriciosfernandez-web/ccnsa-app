@@ -49,6 +49,24 @@ function pushDeliveryMessage(result: RegistroConAplicacionResult) {
   return ` Aviso push fallido: ${delivery.reason || 'sin detalle'}.`
 }
 
+function emailDeliveryMessage(result: RegistroConAplicacionResult) {
+  if (result.emailError) return ` Correo: no se pudo preparar (${result.emailError}).`
+  const delivery = result.emailDelivery
+  if (!delivery) return ''
+  if (delivery.status === 'QUEUED') {
+    return delivery.reason === 'ALREADY_QUEUED'
+      ? ` Correo ya preparado para ${delivery.email || 'el socio'}.`
+      : ` Correo preparado para ${delivery.email || 'el socio'}.`
+  }
+  if (delivery.reason === 'EMAIL_BACKEND_NOT_CONFIGURED') {
+    return ' Correo pendiente de configurar en DEV.'
+  }
+  if (delivery.reason === 'MISSING_EMAIL') {
+    return ' Correo omitido: el socio no tiene email registrado.'
+  }
+  return ` Correo omitido: ${delivery.reason || 'sin detalle'}.`
+}
+
 export function AdminSociosPage() {
   const { user, profile } = useAuth()
   const canWrite = profile?.role === 'ADMIN' || profile?.role === 'TESORERIA'
@@ -140,7 +158,7 @@ export function AdminSociosPage() {
       const obligationMessage = result.importeAplicado > 0
         ? `Obligación registrada. Se aplicaron automáticamente ${money(result.importeAplicado)} de saldo a favor.`
         : 'Obligación registrada.'
-      setMessage(obligationMessage + pushDeliveryMessage(result))
+      setMessage(obligationMessage + pushDeliveryMessage(result) + emailDeliveryMessage(result))
       await loadAccount(selected.id)
     } catch (caught) {
       console.error('Error creating obligation', caught)
@@ -169,7 +187,7 @@ export function AdminSociosPage() {
       const paymentMessage = result.saldoDisponible > 0
         ? `Pago registrado. ${money(result.importeAplicado)} se imputaron a obligaciones y ${money(result.saldoDisponible)} quedaron como saldo a favor.`
         : `Pago registrado e imputado por ${money(result.importeAplicado)}.`
-      setMessage(paymentMessage + pushDeliveryMessage(result))
+      setMessage(paymentMessage + pushDeliveryMessage(result) + emailDeliveryMessage(result))
       await loadAccount(selected.id)
     } catch (caught) {
       console.error('Error creating payment', caught)

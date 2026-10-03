@@ -10,6 +10,7 @@ No ejecutar migración ni abrir el portal productivo hasta completar esta lista.
 - [ ] Actividades: inscripción, cancelación, cupos y lista de espera probados.
 - [ ] Pagos, obligaciones, conciliación y Finanzas probados.
 - [ ] Push real probado al menos en un dispositivo SOCIO.
+- [ ] Canal EMAIL implementado y probado para avisos relevantes al socio.
 
 ## 2. Seguridad
 - [ ] Firestore Rules revisadas por mínimo privilegio.

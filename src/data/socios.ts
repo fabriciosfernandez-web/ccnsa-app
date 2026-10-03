@@ -14,6 +14,7 @@ import {
 import { db } from '../lib/firebase'
 import { resolveAuditActor, type AuditActorInput } from './auditActor'
 import { deliverNotificationPushNow, type PushDeliveryResult } from '../notifications/pushDeliveryService'
+import { queueNotificationEmailNow, type EmailQueueResult } from '../notifications/emailDeliveryService'
 
 export type SocioCategoria = 'SOLTERO' | 'CASADO'
 export type SocioEstado = 'ACTIVO' | 'INACTIVO'
@@ -93,6 +94,8 @@ export interface RegistroConAplicacionResult {
   cantidadAplicaciones: number
   pushDelivery?: PushDeliveryResult
   pushError?: string
+  emailDelivery?: EmailQueueResult
+  emailError?: string
 }
 
 export interface PortfolioSummary {
@@ -493,12 +496,17 @@ export async function createObligacion(
   await batch.commit()
   let pushDelivery: PushDeliveryResult | undefined
   let pushError: string | undefined
+  let emailDelivery: EmailQueueResult | undefined
+  let emailError: string | undefined
   if (notificationId) {
-    try {
-      pushDelivery = await deliverNotificationPushNow(notificationId)
-    } catch (caught) {
-      pushError = caught instanceof Error ? caught.message : 'No se pudo confirmar la entrega push.'
-    }
+    const [pushResult, emailResult] = await Promise.allSettled([
+      deliverNotificationPushNow(notificationId),
+      queueNotificationEmailNow(notificationId),
+    ])
+    if (pushResult.status === 'fulfilled') pushDelivery = pushResult.value
+    else pushError = pushResult.reason instanceof Error ? pushResult.reason.message : 'No se pudo confirmar la entrega push.'
+    if (emailResult.status === 'fulfilled') emailDelivery = emailResult.value
+    else emailError = emailResult.reason instanceof Error ? emailResult.reason.message : 'No se pudo preparar el correo.'
   }
   return {
     id: obligacionRef.id,
@@ -507,6 +515,8 @@ export async function createObligacion(
     cantidadAplicaciones,
     pushDelivery,
     pushError,
+    emailDelivery,
+    emailError,
   }
 }
 
@@ -602,12 +612,17 @@ export async function createPago(
   await batch.commit()
   let pushDelivery: PushDeliveryResult | undefined
   let pushError: string | undefined
+  let emailDelivery: EmailQueueResult | undefined
+  let emailError: string | undefined
   if (notificationId) {
-    try {
-      pushDelivery = await deliverNotificationPushNow(notificationId)
-    } catch (caught) {
-      pushError = caught instanceof Error ? caught.message : 'No se pudo confirmar la entrega push.'
-    }
+    const [pushResult, emailResult] = await Promise.allSettled([
+      deliverNotificationPushNow(notificationId),
+      queueNotificationEmailNow(notificationId),
+    ])
+    if (pushResult.status === 'fulfilled') pushDelivery = pushResult.value
+    else pushError = pushResult.reason instanceof Error ? pushResult.reason.message : 'No se pudo confirmar la entrega push.'
+    if (emailResult.status === 'fulfilled') emailDelivery = emailResult.value
+    else emailError = emailResult.reason instanceof Error ? emailResult.reason.message : 'No se pudo preparar el correo.'
   }
   return {
     id: pagoRef.id,
@@ -616,5 +631,7 @@ export async function createPago(
     cantidadAplicaciones,
     pushDelivery,
     pushError,
+    emailDelivery,
+    emailError,
   }
 }

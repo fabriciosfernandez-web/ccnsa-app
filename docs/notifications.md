@@ -149,3 +149,13 @@ Para una fase posterior, si el volumen crece, puede evaluarse un patrón outbox/
 - Las preferencias pertenecen al socio autenticado.
 - La bitácora de entregas no debe ser modificable por usuarios finales.
 - La clave VAPID pública puede vivir en el cliente; el token FCM de prueba no debe compartirse fuera de Firebase Console.
+
+
+## Requisito multicanal
+Para operación productiva, los avisos relevantes al socio deben poder llegar por tres vías complementarias:
+
+1. **IN_APP**, como registro canónico visible dentro del portal.
+2. **PUSH**, para aviso inmediato en dispositivos registrados.
+3. **EMAIL**, para asegurar un canal independiente de la instalación de la PWA o de los permisos de notificación del dispositivo.
+
+El correo no reemplaza la notificación in-app ni el push; funciona como canal adicional de entrega y trazabilidad.

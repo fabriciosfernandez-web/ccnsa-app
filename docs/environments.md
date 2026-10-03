@@ -7,7 +7,7 @@ El repositorio es único, pero Firebase se separa por ambiente:
 - DEV: `ccnsa-web-dev`
 - PROD: `ccnsa-web-prod`
 
-Los Pull Requests y el despliegue automático actual de `main` continúan apuntando exclusivamente a DEV hasta el cutover productivo.
+Los Pull Requests apuntan a previews temporales de DEV. La rama `dev-stable` publica la versión QA estable en Firebase Hosting DEV. `main` también conserva despliegue DEV hasta el cutover productivo.
 
 ## Salvaguardas incorporadas
 
@@ -67,3 +67,21 @@ Antes de habilitar el uso productivo deben quedar cerrados, como mínimo:
 - verificación de saldos, conteos y auditoría antes de abrir el portal a socios.
 
 El botón/workflow de PROD no sustituye este gate: una ejecución técnica exitosa no implica que el sistema esté funcionalmente aprobado.
+
+
+## DEV estable para QA
+
+Se utilizan dos niveles de publicación dentro del mismo proyecto Firebase DEV:
+
+- **Preview temporal de PR:** valida cada cambio durante el desarrollo.
+- **DEV estable / QA:** rama `dev-stable`, publicada en `https://ccnsa-web-dev.web.app` sin vencimiento.
+
+Flujo recomendado:
+
+1. desarrollar en la rama de trabajo;
+2. validar el preview temporal;
+3. promover el commit aprobado moviendo `dev-stable` a ese SHA;
+4. Firebase Hosting publica automáticamente la versión estable;
+5. testers y QA utilizan siempre la URL DEV estable.
+
+La rama `dev-stable` no implica producción: continúa usando `ccnsa-web-dev`, datos de prueba y credenciales DEV.

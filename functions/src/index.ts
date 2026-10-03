@@ -253,6 +253,168 @@ export const deliverNotificationPushNow = onCall(
   },
 )
 
+
+type EmailQueueRequest = {
+  notificationId?: unknown
+}
+
+type EmailQueueResult = {
+  notificationId: string
+  socioId?: string
+  status: 'QUEUED' | 'SKIPPED'
+  email?: string
+  reason?: string
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+function validHttpsBaseUrl(value: unknown) {
+  const raw = stringValue(value)
+  if (!raw.startsWith('https://')) return ''
+  try {
+    return new URL(raw).origin
+  } catch {
+    return ''
+  }
+}
+
+export const queueNotificationEmailNow = onCall(
+  {
+    minInstances: 0,
+    maxInstances: 1,
+    memory: '256MiB',
+    cpu: 'gcf_gen1',
+    timeoutSeconds: 30,
+  },
+  async (request): Promise<EmailQueueResult> => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'Iniciá sesión para preparar notificaciones por correo.')
+    }
+
+    const callerSnapshot = await database.collection('users').doc(request.auth.uid).get()
+    const caller = callerSnapshot.data() ?? {}
+    if (
+      !callerSnapshot.exists
+      || caller.active !== true
+      || !['ADMIN', 'TESORERIA'].includes(stringValue(caller.role))
+    ) {
+      throw new HttpsError('permission-denied', 'No tenés permisos para preparar notificaciones por correo.')
+    }
+
+    const notificationId = stringValue((request.data ?? {} as EmailQueueRequest).notificationId)
+    if (!notificationId) {
+      throw new HttpsError('invalid-argument', 'La notificación no está identificada.')
+    }
+
+    const notificationSnapshot = await database.collection('notifications').doc(notificationId).get()
+    if (!notificationSnapshot.exists) {
+      throw new HttpsError('not-found', 'La notificación ya no existe.')
+    }
+
+    const notification = notificationSnapshot.data() as NotificationData
+    const socioId = stringValue(notification.socioId)
+    if (!socioId) {
+      return { notificationId, status: 'SKIPPED', reason: 'MISSING_SOCIO_ID' }
+    }
+
+    const configSnapshot = await database.collection('configuracion').doc('notifications_email').get()
+    const config = configSnapshot.data() ?? {}
+    if (!configSnapshot.exists || config.enabled !== true) {
+      return {
+        notificationId,
+        socioId,
+        status: 'SKIPPED',
+        reason: 'EMAIL_BACKEND_NOT_CONFIGURED',
+      }
+    }
+
+    const socioSnapshot = await database.collection('socios').doc(socioId).get()
+    const socio = socioSnapshot.data() ?? {}
+    let email = stringValue(socio.email)
+
+    if (!email) {
+      const linkedUsers = await database.collection('users').where('socioId', '==', socioId).get()
+      const linked = linkedUsers.docs.find((document) => document.data().active === true)
+      email = stringValue(linked?.data().email)
+    }
+
+    if (!email || !email.includes('@')) {
+      return {
+        notificationId,
+        socioId,
+        status: 'SKIPPED',
+        reason: 'MISSING_EMAIL',
+      }
+    }
+
+    const mailRef = database.collection('mail').doc(`${notificationId}__EMAIL`)
+    const existing = await mailRef.get()
+    if (existing.exists) {
+      return {
+        notificationId,
+        socioId,
+        status: 'QUEUED',
+        email,
+        reason: 'ALREADY_QUEUED',
+      }
+    }
+
+    const title = stringValue(notification.title, 'Notificación CCNSA')
+    const body = stringValue(notification.message, 'Tenés una nueva notificación en CCNSA.')
+    const actionUrl = stringValue(notification.actionUrl, '/socio/notificaciones')
+    const baseUrl = validHttpsBaseUrl(config.appBaseUrl)
+    const portalUrl = baseUrl && actionUrl.startsWith('/') ? `${baseUrl}${actionUrl}` : ''
+
+    const safeTitle = escapeHtml(title)
+    const safeBody = escapeHtml(body).replace(/\n/g, '<br>')
+    const linkHtml = portalUrl
+      ? `<p style="margin:24px 0"><a href="${portalUrl}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#12344b;color:#ffffff;text-decoration:none;font-weight:700">Abrir CCNSA</a></p>`
+      : ''
+
+    await mailRef.set({
+      to: [email],
+      message: {
+        subject: `CCNSA · ${title}`,
+        text: `${title}\n\n${body}${portalUrl ? `\n\nAbrir CCNSA: ${portalUrl}` : ''}\n\nCentro Cultural CCNSA`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#203041;line-height:1.6">
+            <div style="border-bottom:3px solid #c5a45a;padding:18px 0">
+              <strong style="font-size:18px;color:#12344b">Centro Cultural CCNSA</strong>
+            </div>
+            <h2 style="color:#12344b;margin-top:28px">${safeTitle}</h2>
+            <p>${safeBody}</p>
+            ${linkHtml}
+            <p style="margin-top:30px;color:#71808d;font-size:13px">
+              Este es un aviso institucional relacionado con tu cuenta de socio.
+            </p>
+          </div>
+        `,
+      },
+      ccnsa: {
+        notificationId,
+        socioId,
+        kind: stringValue(notification.kind, 'GENERAL_NOTICE'),
+        actionUrl,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    })
+
+    return {
+      notificationId,
+      socioId,
+      status: 'QUEUED',
+      email,
+    }
+  },
+)
+
 type ActivityRegistrationAction = {
   actividadId?: unknown
   action?: unknown

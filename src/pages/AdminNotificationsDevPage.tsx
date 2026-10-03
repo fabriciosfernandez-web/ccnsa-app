@@ -113,9 +113,18 @@ export function AdminNotificationsDevPage() {
         return
       }
 
+      const delivery = await deliverNotificationPushNow(result.id)
       const socio = socios.find((item) => item.id === selectedSocioId)
-      setMessage(`Aviso creado para ${socio?.nombre || 'el socio'} (${result.id}). La recepción push todavía no está confirmada; consultá su entrega abajo.`)
-      window.setTimeout(() => { void refreshDeliveries() }, 1500)
+      const deliveryText = delivery.status === 'SENT'
+        ? `FCM aceptó el envío a ${delivery.successCount ?? 0} dispositivo(s).`
+        : delivery.status === 'PARTIAL'
+          ? `Entrega parcial: ${delivery.successCount ?? 0} enviada(s), ${delivery.failureCount ?? 0} fallida(s).`
+          : delivery.status === 'SKIPPED'
+            ? `Push omitido: ${delivery.reason || 'sin detalle'}.`
+            : `Push fallido: ${delivery.reason || 'sin detalle'}.`
+
+      setMessage(`Aviso creado para ${socio?.nombre || 'el socio'} (${result.id}). ${deliveryText}`)
+      await refreshDeliveries()
       form.reset()
       setSelectedSocioId(selectedSocioId)
     } catch (caught) {

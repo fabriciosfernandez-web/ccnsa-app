@@ -7,6 +7,7 @@ import {
   listSocios,
   loadEstadoCuenta,
   type EstadoCuenta,
+  type RegistroConAplicacionResult,
   type Socio,
 } from '../data/socios'
 import { conciliarRegistrosPrevios } from '../data/reconciliacion'
@@ -30,6 +31,22 @@ function devErrorMessage(prefix: string, error: unknown) {
 
 function statusClass(status: string) {
   return status === 'PAGADA' || status === 'ACTIVO' ? 'success' : 'neutral'
+}
+
+function pushDeliveryMessage(result: RegistroConAplicacionResult) {
+  if (result.pushError) return ` Aviso push: no se pudo confirmar (${result.pushError}).`
+  const delivery = result.pushDelivery
+  if (!delivery) return ''
+  if (delivery.status === 'SENT') {
+    return ` Aviso push enviado a ${delivery.successCount ?? 0} dispositivo(s).`
+  }
+  if (delivery.status === 'PARTIAL') {
+    return ` Aviso push parcial: ${delivery.successCount ?? 0} enviado(s), ${delivery.failureCount ?? 0} fallido(s).`
+  }
+  if (delivery.status === 'SKIPPED') {
+    return ` Aviso push omitido: ${delivery.reason || 'sin detalle'}.`
+  }
+  return ` Aviso push fallido: ${delivery.reason || 'sin detalle'}.`
 }
 
 export function AdminSociosPage() {
@@ -120,9 +137,10 @@ export function AdminSociosPage() {
         fechaVencimiento: String(form.get('fechaVencimiento') || '') || undefined,
       }, user.uid)
       formElement.reset()
-      setMessage(result.importeAplicado > 0
+      const obligationMessage = result.importeAplicado > 0
         ? `Obligación registrada. Se aplicaron automáticamente ${money(result.importeAplicado)} de saldo a favor.`
-        : 'Obligación registrada.')
+        : 'Obligación registrada.'
+      setMessage(obligationMessage + pushDeliveryMessage(result))
       await loadAccount(selected.id)
     } catch (caught) {
       console.error('Error creating obligation', caught)
@@ -148,9 +166,10 @@ export function AdminSociosPage() {
         referencia: String(form.get('referencia') || '').trim() || undefined,
       }, user.uid)
       formElement.reset()
-      setMessage(result.saldoDisponible > 0
+      const paymentMessage = result.saldoDisponible > 0
         ? `Pago registrado. ${money(result.importeAplicado)} se imputaron a obligaciones y ${money(result.saldoDisponible)} quedaron como saldo a favor.`
-        : `Pago registrado e imputado por ${money(result.importeAplicado)}.`)
+        : `Pago registrado e imputado por ${money(result.importeAplicado)}.`
+      setMessage(paymentMessage + pushDeliveryMessage(result))
       await loadAccount(selected.id)
     } catch (caught) {
       console.error('Error creating payment', caught)

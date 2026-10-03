@@ -4,7 +4,7 @@
 
 Incorporar avisos de estado de cuenta sin acoplar la aplicación a un proveedor específico de correo o push.
 
-La aplicación trabaja contra un contrato `NotificationService`. En DEV, el canal **IN_APP** utiliza Firestore y el canal **PUSH** utiliza Firebase Cloud Messaging mediante una Cloud Function callable autenticada. El correo electrónico continúa pendiente.
+La aplicación trabaja contra un contrato `NotificationService`. En DEV, el canal **IN_APP** utiliza Firestore y el canal **PUSH** utiliza Firebase Cloud Messaging mediante una Cloud Function callable autenticada. El canal **EMAIL** ya cuenta con outbox transaccional backend compatible con Firebase Trigger Email; resta conectar y validar el servidor SMTP.
 
 ## Eventos iniciales
 
@@ -17,7 +17,7 @@ La aplicación trabaja contra un contrato `NotificationService`. En DEV, el cana
 ## Canales previstos
 
 - `IN_APP`: centro de notificaciones dentro de CCNSA App. **Activo en DEV.**
-- `EMAIL`: correo electrónico. Pendiente de proveedor/backend.
+- `EMAIL`: correo electrónico transaccional. **Outbox backend listo en DEV; SMTP pendiente de conexión/prueba.**
 - `PUSH`: notificación web mediante Firebase Cloud Messaging. **Activo en DEV** para dispositivos registrados por el socio y entregas disparadas desde backend autenticado.
 
 Los canales de entrega se modelan por separado del evento. Un mismo evento puede generar cero, una o varias entregas según las preferencias del socio.
@@ -137,7 +137,7 @@ Esto permite cambiar de proveedor de correo o push sin alterar pagos, obligacion
 
 ## Automatización pendiente
 
-Los recordatorios periódicos y estados de cuenta mensuales automáticos todavía requieren un scheduler/proceso servidor. El correo electrónico también continúa pendiente de proveedor e implementación.
+Los recordatorios periódicos y estados de cuenta mensuales automáticos todavía requieren un scheduler/proceso servidor. La lógica de negocio y el outbox de correo ya están implementados. Resta instalar/configurar Firebase Trigger Email con un proveedor SMTP y validar entregas reales antes de PROD.
 
 Para una fase posterior, si el volumen crece, puede evaluarse un patrón outbox/worker para desacoplar aún más los eventos de negocio de sus entregas y reforzar reintentos/idempotencia.
 
@@ -159,3 +159,16 @@ Para operación productiva, los avisos relevantes al socio deben poder llegar po
 3. **EMAIL**, para asegurar un canal independiente de la instalación de la PWA o de los permisos de notificación del dispositivo.
 
 El correo no reemplaza la notificación in-app ni el push; funciona como canal adicional de entrega y trazabilidad.
+
+
+## Email transaccional
+Los avisos financieros esenciales —pagos, nuevas obligaciones y estados de cuenta— deben poder llegar al email registrado en la ficha del socio, independientemente de que la PWA esté instalada o de que Push esté habilitado.
+
+Flujo previsto:
+1. Se crea la notificación canónica.
+2. El backend valida socio y email.
+3. Se crea de forma idempotente un documento en `mail/{notificationId}__EMAIL`.
+4. Firebase Trigger Email procesa la entrega mediante SMTP.
+5. La propia extensión registra su estado de entrega en el documento de correo.
+
+La colección `mail` no admite escrituras desde clientes; solo backend confiable/extensión.

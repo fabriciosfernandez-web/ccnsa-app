@@ -34,8 +34,12 @@ async function writeDelivery(
   notificationId: string,
   payload: Record<string, unknown>,
 ) {
+  const cleanPayload = Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined),
+  )
+
   await database.collection('notification_deliveries').doc(notificationId).set({
-    ...payload,
+    ...cleanPayload,
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true })
 }

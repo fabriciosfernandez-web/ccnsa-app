@@ -1,12 +1,17 @@
-name: Firebase Hosting DEV Live
+name: Firebase Hosting DEV Stable
 
 on:
   push:
     branches:
       - main
+      - dev-stable
 
 permissions:
   contents: read
+
+concurrency:
+  group: firebase-dev-stable
+  cancel-in-progress: true
 
 jobs:
   build_and_deploy_dev:
@@ -15,6 +20,7 @@ jobs:
       VITE_APP_ENV: dev
       VITE_BUILD_SHA: ${{ github.sha }}
       VITE_BUILD_RUN: ${{ github.run_number }}
+      VITE_FIREBASE_VAPID_KEY: BON-WbShWqB7yF_doLK1yunzkH3G0xakCbhavPDVWxcZY0fhGB1rmWekbhJBGLWYe-uTA4s-7Ti1kx6fDzMt1ZM
     steps:
       - uses: actions/checkout@v4
 

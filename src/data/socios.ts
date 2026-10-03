@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { resolveAuditActor, type AuditActorInput } from './auditActor'
-import { deliverNotificationPushNow } from '../notifications/pushDeliveryService'
+import { deliverNotificationPushNow, type PushDeliveryResult } from '../notifications/pushDeliveryService'
 
 export type SocioCategoria = 'SOLTERO' | 'CASADO'
 export type SocioEstado = 'ACTIVO' | 'INACTIVO'
@@ -91,6 +91,8 @@ export interface RegistroConAplicacionResult {
   importeAplicado: number
   saldoDisponible: number
   cantidadAplicaciones: number
+  pushDelivery?: PushDeliveryResult
+  pushError?: string
 }
 
 export interface PortfolioSummary {
@@ -489,10 +491,23 @@ export async function createObligacion(
   }
 
   await batch.commit()
+  let pushDelivery: PushDeliveryResult | undefined
+  let pushError: string | undefined
   if (notificationId) {
-    void deliverNotificationPushNow(notificationId).catch(() => undefined)
+    try {
+      pushDelivery = await deliverNotificationPushNow(notificationId)
+    } catch (caught) {
+      pushError = caught instanceof Error ? caught.message : 'No se pudo confirmar la entrega push.'
+    }
   }
-  return { id: obligacionRef.id, importeAplicado: aplicado, saldoDisponible: restante, cantidadAplicaciones }
+  return {
+    id: obligacionRef.id,
+    importeAplicado: aplicado,
+    saldoDisponible: restante,
+    cantidadAplicaciones,
+    pushDelivery,
+    pushError,
+  }
 }
 
 export async function createPago(
@@ -585,8 +600,21 @@ export async function createPago(
   }
 
   await batch.commit()
+  let pushDelivery: PushDeliveryResult | undefined
+  let pushError: string | undefined
   if (notificationId) {
-    void deliverNotificationPushNow(notificationId).catch(() => undefined)
+    try {
+      pushDelivery = await deliverNotificationPushNow(notificationId)
+    } catch (caught) {
+      pushError = caught instanceof Error ? caught.message : 'No se pudo confirmar la entrega push.'
+    }
   }
-  return { id: pagoRef.id, importeAplicado: aplicado, saldoDisponible: restante, cantidadAplicaciones }
+  return {
+    id: pagoRef.id,
+    importeAplicado: aplicado,
+    saldoDisponible: restante,
+    cantidadAplicaciones,
+    pushDelivery,
+    pushError,
+  }
 }

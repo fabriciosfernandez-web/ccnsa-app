@@ -22,5 +22,8 @@
     "predeploy": [
       "npm --prefix \"$RESOURCE_DIR\" run build"
     ]
+  },
+  "extensions": {
+    "ccnsa-trigger-email": "firebase/firestore-send-email@0.2.10"
   }
 }

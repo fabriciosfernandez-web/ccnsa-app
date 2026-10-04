@@ -1,3 +1,81 @@
+.login-screen.legacy-login-screen {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #0c1925;
+}
+
+.login-screen.legacy-login-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Pante%C3%B3n_Nacional_de_los_H%C3%A9roes_de_Asunci%C3%B3n%2C_Paraguay.jpg/1280px-Pante%C3%B3n_Nacional_de_los_H%C3%A9roes_de_Asunci%C3%B3n%2C_Paraguay.jpg');
+  background-size: cover;
+  background-position: center 42%;
+  filter: grayscale(100%) saturate(55%) contrast(92%) brightness(72%);
+  opacity: 0.34;
+  transform: scale(1.015);
+}
+
+.login-screen.legacy-login-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(197, 164, 90, 0.13), transparent 34%),
+    linear-gradient(150deg, rgba(7, 20, 31, 0.78) 0%, rgba(16, 40, 58, 0.72) 48%, rgba(7, 18, 27, 0.86) 100%);
+}
+
+.legacy-login-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 470px);
+  background: rgba(255, 255, 255, 0.965);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(197, 164, 90, 0.08);
+}
+
+.login-brand {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 28px 32px 16px;
+  text-align: center;
+}
+
+.login-brand h1 {
+  margin: 7px 0 0;
+  color: var(--text-primary, var(--ccnsa-blue));
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
+  letter-spacing: 0.055em;
+}
+
+.login-brand p {
+  margin: 0;
+  color: var(--text-secondary, #6f7c89);
+  font-size: 0.93rem;
+  line-height: 1.45;
+}
+
+.login-official-logo {
+  width: 92px;
+  height: 92px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid var(--ccnsa-gold);
+  box-shadow:
+    0 7px 20px rgba(15, 31, 47, 0.16),
+    0 0 0 4px rgba(197, 164, 90, 0.08);
+}
+
 .login-actions {
   display: grid;
   gap: 16px;
@@ -54,6 +132,33 @@
 }
 
 @media (max-width: 560px) {
+  .login-screen.legacy-login-screen::before {
+    background-position: 50% center;
+    opacity: 0.29;
+  }
+
+  .login-screen.legacy-login-screen::after {
+    background:
+      linear-gradient(180deg, rgba(7, 20, 31, 0.82) 0%, rgba(12, 31, 45, 0.76) 48%, rgba(7, 18, 27, 0.88) 100%);
+  }
+
+  .login-brand {
+    padding: 24px 24px 14px;
+  }
+
+  .login-brand h1 {
+    font-size: 1.8rem;
+  }
+
+  .login-brand p {
+    font-size: 0.88rem;
+  }
+
+  .login-official-logo {
+    width: 84px;
+    height: 84px;
+  }
+
   .login-actions {
     margin-left: 24px;
     margin-right: 24px;

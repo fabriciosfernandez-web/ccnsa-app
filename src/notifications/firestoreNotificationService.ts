@@ -16,8 +16,9 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { resolveAuditActor } from '../data/auditActor'
 import type { NotificationService } from './NotificationService'
-import type { AccountNotification, NotificationKind, NotificationPreferences } from './types'
+import type { AccountNotification, NotificationDelivery, NotificationKind, NotificationPreferences } from './types'
 
 const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'socioId'> = {
   inApp: true,
@@ -162,4 +163,90 @@ export const firestoreNotificationService: NotificationService = {
       updatedAt: serverTimestamp(),
     }, { merge: true })
   },
+}
+
+
+export interface GeneralNoticeInput {
+  socioId: string
+  title: string
+  message: string
+  actionUrl?: '/socio' | '/socio/notificaciones'
+}
+
+export async function createGeneralNotice(input: GeneralNoticeInput, actorUid: string) {
+  const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actorUid)
+  const preferencesSnapshot = await getDoc(doc(database, 'notification_preferences', input.socioId))
+  const preferences = mapPreferences(
+    input.socioId,
+    preferencesSnapshot.exists() ? preferencesSnapshot.data() : DEFAULT_PREFERENCES,
+  )
+
+  if (!preferences.inApp) {
+    return { created: false as const, reason: 'IN_APP_DISABLED' as const }
+  }
+
+  const notificationRef = doc(collection(database, 'notifications'))
+  const auditRef = doc(collection(database, 'audit_log'))
+  const batch = writeBatch(database)
+  const actionUrl = input.actionUrl === '/socio/notificaciones' ? '/socio/notificaciones' : '/socio'
+
+  batch.set(notificationRef, {
+    socioId: input.socioId,
+    kind: 'GENERAL_NOTICE',
+    title: input.title.trim(),
+    message: input.message.trim(),
+    status: 'UNREAD',
+    createdAt: serverTimestamp(),
+    actionUrl,
+    sourceType: 'manual_notice',
+    sourceId: notificationRef.id,
+    deduplicationKey: `general:${notificationRef.id}`,
+    createdByUid: actorUid,
+  })
+
+  batch.set(auditRef, {
+    ...actorSnapshot,
+    action: 'GENERAL_NOTICE_CREATED',
+    entity: 'notifications',
+    entityId: notificationRef.id,
+    socioId: input.socioId,
+    createdAt: serverTimestamp(),
+  })
+
+  await batch.commit()
+  return { created: true as const, id: notificationRef.id }
+}
+
+
+export async function listRecentPushDeliveries(limit = 12): Promise<NotificationDelivery[]> {
+  const database = requireDb()
+  const snapshot = await getDocs(collection(database, 'notification_deliveries'))
+  const deliveries = snapshot.docs.map((item) => {
+    const data = item.data()
+    const rawStatus = String(data.status ?? 'PENDING')
+    const status: NotificationDelivery['status'] = rawStatus === 'SENT'
+      || rawStatus === 'PARTIAL'
+      || rawStatus === 'FAILED'
+      || rawStatus === 'SKIPPED'
+      ? rawStatus
+      : 'PENDING'
+
+    return {
+      id: item.id,
+      notificationId: String(data.notificationId ?? item.id),
+      socioId: data.socioId ? String(data.socioId) : undefined,
+      channel: 'PUSH' as const,
+      status,
+      updatedAt: data.updatedAt ? timestampToIso(data.updatedAt) : undefined,
+      attempted: typeof data.attempted === 'number' ? data.attempted : undefined,
+      successCount: typeof data.successCount === 'number' ? data.successCount : undefined,
+      failureCount: typeof data.failureCount === 'number' ? data.failureCount : undefined,
+      reason: data.reason ? String(data.reason) : undefined,
+    }
+  })
+
+  return deliveries
+    .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')))
+    .slice(0, Math.max(1, limit))
 }

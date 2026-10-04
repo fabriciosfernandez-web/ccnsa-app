@@ -7,14 +7,20 @@ import {
   listSocios,
   loadEstadoCuenta,
   type EstadoCuenta,
+  type RegistroConAplicacionResult,
   type Socio,
 } from '../data/socios'
 import { conciliarRegistrosPrevios } from '../data/reconciliacion'
 import './admin-socios.css'
 
 const money = (value: number) => `Gs. ${Math.round(value).toLocaleString('es-PY')}`
-const today = new Date().toISOString().slice(0, 10)
-const currentPeriod = new Date().toISOString().slice(0, 7)
+
+function localIsoDate(date = new Date()) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
+const today = localIsoDate()
+const currentPeriod = today.slice(0, 7)
 
 function devErrorMessage(prefix: string, error: unknown) {
   if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
@@ -25,6 +31,40 @@ function devErrorMessage(prefix: string, error: unknown) {
 
 function statusClass(status: string) {
   return status === 'PAGADA' || status === 'ACTIVO' ? 'success' : 'neutral'
+}
+
+function pushDeliveryMessage(result: RegistroConAplicacionResult) {
+  if (result.pushError) return ` Aviso push: no se pudo confirmar (${result.pushError}).`
+  const delivery = result.pushDelivery
+  if (!delivery) return ''
+  if (delivery.status === 'SENT') {
+    return ` Aviso push enviado a ${delivery.successCount ?? 0} dispositivo(s).`
+  }
+  if (delivery.status === 'PARTIAL') {
+    return ` Aviso push parcial: ${delivery.successCount ?? 0} enviado(s), ${delivery.failureCount ?? 0} fallido(s).`
+  }
+  if (delivery.status === 'SKIPPED') {
+    return ` Aviso push omitido: ${delivery.reason || 'sin detalle'}.`
+  }
+  return ` Aviso push fallido: ${delivery.reason || 'sin detalle'}.`
+}
+
+function emailDeliveryMessage(result: RegistroConAplicacionResult) {
+  if (result.emailError) return ` Correo: no se pudo preparar (${result.emailError}).`
+  const delivery = result.emailDelivery
+  if (!delivery) return ''
+  if (delivery.status === 'QUEUED') {
+    return delivery.reason === 'ALREADY_QUEUED'
+      ? ` Correo ya preparado para ${delivery.email || 'el socio'}.`
+      : ` Correo preparado para ${delivery.email || 'el socio'}.`
+  }
+  if (delivery.reason === 'EMAIL_BACKEND_NOT_CONFIGURED') {
+    return ' Correo pendiente de configurar en DEV.'
+  }
+  if (delivery.reason === 'MISSING_EMAIL') {
+    return ' Correo omitido: el socio no tiene email registrado.'
+  }
+  return ` Correo omitido: ${delivery.reason || 'sin detalle'}.`
 }
 
 export function AdminSociosPage() {
@@ -115,9 +155,10 @@ export function AdminSociosPage() {
         fechaVencimiento: String(form.get('fechaVencimiento') || '') || undefined,
       }, user.uid)
       formElement.reset()
-      setMessage(result.importeAplicado > 0
+      const obligationMessage = result.importeAplicado > 0
         ? `Obligación registrada. Se aplicaron automáticamente ${money(result.importeAplicado)} de saldo a favor.`
-        : 'Obligación registrada.')
+        : 'Obligación registrada.'
+      setMessage(obligationMessage + pushDeliveryMessage(result) + emailDeliveryMessage(result))
       await loadAccount(selected.id)
     } catch (caught) {
       console.error('Error creating obligation', caught)
@@ -143,9 +184,10 @@ export function AdminSociosPage() {
         referencia: String(form.get('referencia') || '').trim() || undefined,
       }, user.uid)
       formElement.reset()
-      setMessage(result.saldoDisponible > 0
+      const paymentMessage = result.saldoDisponible > 0
         ? `Pago registrado. ${money(result.importeAplicado)} se imputaron a obligaciones y ${money(result.saldoDisponible)} quedaron como saldo a favor.`
-        : `Pago registrado e imputado por ${money(result.importeAplicado)}.`)
+        : `Pago registrado e imputado por ${money(result.importeAplicado)}.`
+      setMessage(paymentMessage + pushDeliveryMessage(result) + emailDeliveryMessage(result))
       await loadAccount(selected.id)
     } catch (caught) {
       console.error('Error creating payment', caught)

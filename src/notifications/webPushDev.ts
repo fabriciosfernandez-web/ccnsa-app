@@ -1,5 +1,6 @@
 import { getMessaging, getToken, isSupported, onMessage, type MessagePayload } from 'firebase/messaging'
 import { appEnvironment, firebaseApp } from '../lib/firebase'
+import { ensureMessagingServiceWorker } from './messagingServiceWorker'
 
 const STORAGE_KEY = 'ccnsa:dev:vapid-key'
 
@@ -10,6 +11,8 @@ export interface PushSetupState {
 }
 
 export function storedVapidKey() {
+  const configured = String(import.meta.env.VITE_FIREBASE_VAPID_KEY || '').trim()
+  if (configured) return configured
   if (typeof window === 'undefined') return ''
   return window.localStorage.getItem(STORAGE_KEY) ?? ''
 }
@@ -37,16 +40,6 @@ export async function inspectPushSupport(): Promise<PushSetupState> {
     permission: notificationAvailable ? Notification.permission : 'unavailable',
     secureContext,
   }
-}
-
-async function ensureMessagingServiceWorker() {
-  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
-    throw new Error('Este navegador no dispone de Service Worker.')
-  }
-
-  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
-  await navigator.serviceWorker.ready
-  return registration
 }
 
 export async function registerPushForManualTest(vapidKey: string) {
@@ -98,10 +91,8 @@ export async function showLocalNotificationTest() {
   }
 
   const registration = await ensureMessagingServiceWorker()
-  await registration.showNotification('CCNSA · prueba local', {
-    body: 'Si ves este aviso, el navegador y el Service Worker pueden mostrar notificaciones correctamente.',
-    icon: '/ccnsa-mark.svg',
-    badge: '/ccnsa-mark.svg',
+  await registration.showNotification('CCNSA · Notificación de prueba', {
+    body: 'Tu estado de cuenta tiene una actualización. Tocá para ver el detalle.',
     tag: 'ccnsa-local-push-test',
   })
 }

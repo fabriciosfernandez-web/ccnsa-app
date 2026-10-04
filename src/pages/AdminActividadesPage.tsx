@@ -7,9 +7,13 @@ import {
   createMovimientoActividad,
   loadActividades,
   setActividadEstado,
+  updateActividadInscripcionAdmin,
+  updateActividadInscripcionConfig,
   type Actividad,
   type ActividadActor,
+  type ActividadAsistenciaEstado,
   type ActividadEstado,
+  type ActividadPagoEstado,
   type ActividadTipo,
   type ActividadesSnapshot,
   type MovimientoActividad,
@@ -74,7 +78,7 @@ export function AdminActividadesPage() {
   const { user, profile } = useAuth()
   const today = useMemo(localIsoDate, [])
   const canWrite = profile?.role === 'ADMIN' || profile?.role === 'TESORERIA'
-  const [snapshot, setSnapshot] = useState<ActividadesSnapshot>({ actividades: [], movimientos: [] })
+  const [snapshot, setSnapshot] = useState<ActividadesSnapshot>({ actividades: [], movimientos: [], inscripciones: [] })
   const [selectedId, setSelectedId] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -84,6 +88,7 @@ export function AdminActividadesPage() {
   const [stateFilter, setStateFilter] = useState<'TODAS' | ActividadEstado>('TODAS')
   const [showActivityForm, setShowActivityForm] = useState(false)
   const [showMovementForm, setShowMovementForm] = useState(false)
+  const [showRegistrationConfig, setShowRegistrationConfig] = useState(false)
   const [voidTarget, setVoidTarget] = useState<MovimientoActividad | null>(null)
   const [voidReason, setVoidReason] = useState('')
 
@@ -123,6 +128,26 @@ export function AdminActividadesPage() {
   const selectedMovements = useMemo(
     () => snapshot.movimientos.filter((item) => item.actividadId === selectedId),
     [snapshot.movimientos, selectedId],
+  )
+
+  const selectedRegistrations = useMemo(
+    () => snapshot.inscripciones.filter((item) => item.actividadId === selectedId),
+    [snapshot.inscripciones, selectedId],
+  )
+
+  const confirmedRegistrations = useMemo(
+    () => selectedRegistrations.filter((item) => item.estado === 'CONFIRMADA'),
+    [selectedRegistrations],
+  )
+
+  const waitingRegistrations = useMemo(
+    () => selectedRegistrations.filter((item) => item.estado === 'ESPERA'),
+    [selectedRegistrations],
+  )
+
+  const confirmedPeople = useMemo(
+    () => confirmedRegistrations.reduce((sum, item) => sum + 1 + item.acompanantes, 0),
+    [confirmedRegistrations],
   )
 
   const filteredActivities = useMemo(() => {
@@ -167,6 +192,10 @@ export function AdminActividadesPage() {
     const form = event.currentTarget
     const data = new FormData(form)
     const presupuestoRaw = String(data.get('presupuesto') || '').trim()
+    const cupoRaw = String(data.get('cupo') || '').trim()
+    const costoRaw = String(data.get('costoInscripcion') || '').trim()
+    const permiteAcompanantes = data.get('permiteAcompanantes') === 'on'
+    const maxAcompanantesRaw = String(data.get('maxAcompanantes') || '').trim()
     const input: NuevaActividad = {
       nombre: String(data.get('nombre') || ''),
       tipo: String(data.get('tipo') || 'OTRO') as ActividadTipo,
@@ -175,6 +204,10 @@ export function AdminActividadesPage() {
       estado: String(data.get('estado') || 'PLANIFICADA') as ActividadEstado,
       descripcion: String(data.get('descripcion') || ''),
       presupuesto: presupuestoRaw ? Number(presupuestoRaw) : undefined,
+      cupo: cupoRaw ? Number(cupoRaw) : undefined,
+      costoInscripcion: costoRaw ? Number(costoRaw) : 0,
+      permiteAcompanantes,
+      maxAcompanantes: permiteAcompanantes && maxAcompanantesRaw ? Number(maxAcompanantesRaw) : 0,
     }
 
     try {
@@ -215,6 +248,54 @@ export function AdminActividadesPage() {
       setShowMovementForm(false)
       setSuccess('Movimiento registrado. Su impacto ya quedó integrado al balance general de Finanzas.')
       await refresh(selected.id)
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitRegistrationConfig(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!actor || !canWrite || !selected || busy) return
+    const data = new FormData(event.currentTarget)
+    const cupoRaw = String(data.get('cupo') || '').trim()
+    const costoRaw = String(data.get('costoInscripcion') || '').trim()
+    const permiteAcompanantes = data.get('permiteAcompanantes') === 'on'
+    const maxAcompanantesRaw = String(data.get('maxAcompanantes') || '').trim()
+
+    try {
+      setBusy(true)
+      setError('')
+      setSuccess('')
+      await updateActividadInscripcionConfig(selected.id, {
+        cupo: cupoRaw ? Number(cupoRaw) : undefined,
+        costoInscripcion: costoRaw ? Number(costoRaw) : 0,
+        permiteAcompanantes,
+        maxAcompanantes: permiteAcompanantes && maxAcompanantesRaw ? Number(maxAcompanantesRaw) : 0,
+      }, actor)
+      setShowRegistrationConfig(false)
+      setSuccess('Configuración de inscripciones actualizada.')
+      await refresh(selected.id)
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function changeRegistrationAdmin(
+    inscripcionId: string,
+    changes: { estadoPago?: ActividadPagoEstado; asistencia?: ActividadAsistenciaEstado },
+  ) {
+    if (!actor || !canWrite || busy) return
+    try {
+      setBusy(true)
+      setError('')
+      setSuccess('')
+      await updateActividadInscripcionAdmin(inscripcionId, changes, actor)
+      setSuccess('Inscripción actualizada.')
+      await refresh(selectedId)
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
@@ -266,6 +347,20 @@ export function AdminActividadesPage() {
       ['Inicio', selected.fechaInicio],
       ['Fin', selected.fechaFin ?? ''],
       ['Presupuesto', selected.presupuesto ?? ''],
+      ['Cupo', selected.cupo ?? 'Sin límite'],
+      ['Costo inscripción', selected.costoInscripcion],
+      ['Acompañantes', selected.permiteAcompanantes ? `Hasta ${selected.maxAcompanantes}` : 'No'],
+      [],
+      ['INSCRIPCIONES'],
+      ['Socio', 'Estado', 'Acompañantes', 'Pago', 'Asistencia', 'Importe'],
+      ...selectedRegistrations.map((item) => [
+        item.socioNombre,
+        item.estado,
+        item.acompanantes,
+        item.estadoPago,
+        item.asistencia,
+        item.importeInscripcion,
+      ]),
       [],
       ['RESUMEN'],
       ['Ingresos', selectedTotals.ingresos],
@@ -357,6 +452,7 @@ export function AdminActividadesPage() {
                   </div>
                   <div className="activity-summary-actions">
                     <button className="button secondary" type="button" onClick={exportSelected}>Exportar CSV</button>
+                    {canWrite && <button className="button secondary" type="button" onClick={() => setShowRegistrationConfig(true)}>Configurar inscripciones</button>}
                     {canWrite && selected.estado !== 'CERRADA' && selected.estado !== 'CANCELADA' && <button className="button primary" type="button" onClick={() => setShowMovementForm(true)}>Registrar movimiento</button>}
                   </div>
                 </div>
@@ -370,6 +466,62 @@ export function AdminActividadesPage() {
                 <article className="metric-card legacy-metric-card"><span>Egresos</span><strong>{money(selectedTotals.egresos)}</strong><small>Movimientos vigentes de salida.</small></article>
                 <article className="metric-card legacy-metric-card"><span>Resultado</span><strong>{money(selectedTotals.resultado)}</strong><small>{selected.presupuesto !== undefined ? `Presupuesto referencial ${money(selected.presupuesto)}.` : 'Sin presupuesto referencial cargado.'}</small></article>
               </div>
+
+              <article className="panel legacy-panel activities-ledger-panel">
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="legacy-kicker">Inscripciones</p>
+                    <h3>Participantes y seguimiento</h3>
+                    <p className="muted">Cupos, lista de espera, acompañantes, pago y asistencia efectiva en una sola vista.</p>
+                  </div>
+                  <div className="activity-registration-badges">
+                    <span className="status-badge success">{confirmedRegistrations.length} confirmada(s)</span>
+                    {waitingRegistrations.length > 0 && <span className="status-badge neutral">{waitingRegistrations.length} en espera</span>}
+                  </div>
+                </div>
+
+                <div className="activity-registration-summary">
+                  <div><span>Cupos ocupados</span><strong>{selected.cuposOcupados}</strong><small>{selected.cupo ? `de ${selected.cupo}` : 'sin límite'}</small></div>
+                  <div><span>Personas confirmadas</span><strong>{confirmedPeople}</strong><small>incluye acompañantes</small></div>
+                  <div><span>Costo</span><strong>{selected.costoInscripcion > 0 ? money(selected.costoInscripcion) : 'Sin costo'}</strong><small>por inscripción</small></div>
+                  <div><span>Acompañantes</span><strong>{selected.permiteAcompanantes ? `Hasta ${selected.maxAcompanantes}` : 'No'}</strong><small>por socio</small></div>
+                </div>
+
+                {selectedRegistrations.length === 0 ? (
+                  <div className="activities-empty-state"><strong>Sin inscripciones todavía</strong><span>Las confirmaciones aparecerán aquí automáticamente.</span></div>
+                ) : (
+                  <div className="legacy-table-wrap activities-table-wrap">
+                    <table className="legacy-table activities-registration-table">
+                      <thead><tr><th>Socio</th><th>Estado</th><th>Acomp.</th><th>Pago</th><th>Asistencia</th></tr></thead>
+                      <tbody>{selectedRegistrations.map((item) => (
+                        <tr key={item.id}>
+                          <td><strong>{item.socioNombre}</strong>{item.importeInscripcion > 0 && <small className="activity-registration-sub">{money(item.importeInscripcion)}</small>}</td>
+                          <td><span className={`status-badge ${item.estado === 'CONFIRMADA' ? 'success' : item.estado === 'CANCELADA' ? 'danger' : 'neutral'}`}>{item.estado === 'CONFIRMADA' ? 'Confirmada' : item.estado === 'ESPERA' ? 'Lista de espera' : 'Cancelada'}</span></td>
+                          <td>{item.acompanantes}</td>
+                          <td>
+                            {canWrite ? (
+                              <select className="activity-inline-select" value={item.estadoPago} disabled={busy || item.estado === 'CANCELADA'} onChange={(event) => void changeRegistrationAdmin(item.id, { estadoPago: event.target.value as ActividadPagoEstado })}>
+                                <option value="NO_APLICA">No aplica</option>
+                                <option value="PENDIENTE">Pendiente</option>
+                                <option value="PAGADO">Pagado</option>
+                              </select>
+                            ) : item.estadoPago}
+                          </td>
+                          <td>
+                            {canWrite ? (
+                              <select className="activity-inline-select" value={item.asistencia} disabled={busy || item.estado !== 'CONFIRMADA'} onChange={(event) => void changeRegistrationAdmin(item.id, { asistencia: event.target.value as ActividadAsistenciaEstado })}>
+                                <option value="PENDIENTE">Pendiente</option>
+                                <option value="PRESENTE">Presente</option>
+                                <option value="AUSENTE">Ausente</option>
+                              </select>
+                            ) : item.asistencia}
+                          </td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                )}
+              </article>
 
               <article className="panel legacy-panel activities-ledger-panel">
                 <div className="panel-heading-row">
@@ -413,9 +565,29 @@ export function AdminActividadesPage() {
               <label>Estado inicial<select name="estado" defaultValue="PLANIFICADA"><option value="PLANIFICADA">Planificada</option><option value="ACTIVA">Activa</option></select></label>
               <label>Inicio<input name="fechaInicio" type="date" defaultValue={today} required /></label>
               <label>Fin previsto<input name="fechaFin" type="date" /></label>
-              <label className="activity-wide">Presupuesto referencial<input name="presupuesto" type="number" min="0" placeholder="Opcional" /></label>
+              <label>Presupuesto referencial<input name="presupuesto" type="number" min="0" placeholder="Opcional" /></label>
+              <label>Cupo máximo<input name="cupo" type="number" min="1" step="1" placeholder="Vacío = sin límite" /></label>
+              <label>Costo de inscripción<input name="costoInscripcion" type="number" min="0" defaultValue="0" /></label>
+              <label>Máx. acompañantes<input name="maxAcompanantes" type="number" min="0" step="1" defaultValue="0" /></label>
+              <label className="activity-check activity-wide"><input name="permiteAcompanantes" type="checkbox" /> Permitir acompañantes</label>
               <label className="activity-wide">Descripción<textarea name="descripcion" rows={3} placeholder="Objetivo o alcance de la actividad" /></label>
               <div className="activity-modal-actions activity-wide"><button className="button secondary" type="button" onClick={() => setShowActivityForm(false)} disabled={busy}>Cancelar</button><button className="button primary" type="submit" disabled={busy}>{busy ? 'Guardando…' : 'Crear actividad'}</button></div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {showRegistrationConfig && selected && (
+        <div className="activity-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setShowRegistrationConfig(false) }}>
+          <section className="activity-modal activity-void-modal" role="dialog" aria-modal="true" aria-labelledby="registration-config-title">
+            <div className="activity-modal-header"><div><p className="legacy-kicker">{selected.nombre}</p><h3 id="registration-config-title">Configurar inscripciones</h3></div><button className="activity-modal-close" type="button" onClick={() => setShowRegistrationConfig(false)} disabled={busy} aria-label="Cerrar">×</button></div>
+            <form className="activity-form" onSubmit={submitRegistrationConfig}>
+              <label>Cupo máximo<input name="cupo" type="number" min="1" step="1" defaultValue={selected.cupo ?? ''} placeholder="Vacío = sin límite" /></label>
+              <label>Costo de inscripción<input name="costoInscripcion" type="number" min="0" defaultValue={selected.costoInscripcion} /></label>
+              <label>Máx. acompañantes<input name="maxAcompanantes" type="number" min="0" step="1" defaultValue={selected.maxAcompanantes} /></label>
+              <label className="activity-check"><input name="permiteAcompanantes" type="checkbox" defaultChecked={selected.permiteAcompanantes} /> Permitir acompañantes</label>
+              <div className="notice activities-integration-note activity-wide">Los cupos ocupados se administran automáticamente. Si se libera un lugar, la primera inscripción compatible de la lista de espera se confirma y recibe una notificación.</div>
+              <div className="activity-modal-actions activity-wide"><button className="button secondary" type="button" onClick={() => setShowRegistrationConfig(false)} disabled={busy}>Cancelar</button><button className="button primary" type="submit" disabled={busy}>{busy ? 'Guardando…' : 'Guardar configuración'}</button></div>
             </form>
           </section>
         </div>

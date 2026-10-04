@@ -8,10 +8,16 @@
   "theme_color": "#102537",
   "icons": [
     {
-      "src": "/ccnsa-mark.svg",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
+      "src": "/ccnsa-app-icon.webp",
+      "sizes": "960x960",
+      "type": "image/webp",
       "purpose": "any"
+    },
+    {
+      "src": "/ccnsa-app-icon.webp",
+      "sizes": "960x960",
+      "type": "image/webp",
+      "purpose": "maskable"
     }
   ]
 }

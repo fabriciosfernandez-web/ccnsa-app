@@ -7,14 +7,14 @@ El repositorio es único, pero Firebase se separa por ambiente:
 - DEV: `ccnsa-web-dev`
 - PROD: `ccnsa-web-prod`
 
-Los Pull Requests y el despliegue automático actual de `main` continúan apuntando exclusivamente a DEV hasta el cutover productivo.
+Los Pull Requests apuntan a previews temporales de DEV. La rama `dev-stable` publica la versión QA estable en Firebase Hosting DEV. `main` también conserva despliegue DEV hasta el cutover productivo.
 
 ## Salvaguardas incorporadas
 
 1. `.firebaserc` mantiene `default` y `dev` en `ccnsa-web-dev`; `prod` queda reservado para `ccnsa-web-prod`.
 2. La aplicación exige `VITE_APP_ENV=dev|prod` y bloquea builds con `projectId` cruzado.
 3. Los previews de Pull Request fijan `VITE_APP_ENV=dev` y usan solamente el service account DEV.
-4. El workflow de PROD es manual (`workflow_dispatch`) y usa el GitHub Environment `production`.
+4. El workflow de PROD es manual (`workflow_dispatch`), usa el GitHub Environment `production` y exige escribir `CCNSA-PROD` como confirmación explícita.
 5. El workflow PROD valida que `VITE_FIREBASE_PROJECT_ID_PROD=ccnsa-web-prod` antes de compilar.
 6. DEV y PROD usan credenciales/service accounts separados.
 
@@ -28,6 +28,7 @@ Crear, después de registrar la Web App de producción:
 - `VITE_FIREBASE_STORAGE_BUCKET_PROD`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID_PROD`
 - `VITE_FIREBASE_APP_ID_PROD`
+- `VITE_FIREBASE_VAPID_KEY_PROD` (si se habilita Web Push en PROD)
 
 Secret requerido:
 
@@ -50,3 +51,37 @@ Secret requerido:
 ## Regla operativa
 
 Nunca copiar la base Firestore DEV a PROD. DEV conserva datos de prueba. Los datos productivos entran mediante migración controlada o funcionalidades normales de la aplicación.
+
+
+## Gate de salida de DEV
+
+Antes de habilitar el uso productivo deben quedar cerrados, como mínimo:
+
+- prueba funcional del rol `TESORERIA` con una cuenta independiente;
+- prueba end-to-end de inscripción/cancelación/cupos/lista de espera en Actividades;
+- decisión y prueba final del canal Web Push/notificaciones;
+- validación de conciliación masiva sobre datos de prueba;
+- preflight de migración sin colisiones ni diferencias;
+- definición del esquema de respaldo de PROD (snapshot manual disponible; PITR/backups administrados a decidir antes del cutover);
+- validación del ADMIN inicial y reglas de acceso en el proyecto PROD;
+- verificación de saldos, conteos y auditoría antes de abrir el portal a socios.
+
+El botón/workflow de PROD no sustituye este gate: una ejecución técnica exitosa no implica que el sistema esté funcionalmente aprobado.
+
+
+## DEV estable para QA
+
+Se utilizan dos niveles de publicación dentro del mismo proyecto Firebase DEV:
+
+- **Preview temporal de PR:** valida cada cambio durante el desarrollo.
+- **DEV estable / QA:** rama `dev-stable`, publicada en `https://ccnsa-web-dev.web.app` sin vencimiento.
+
+Flujo recomendado:
+
+1. desarrollar en la rama de trabajo;
+2. validar el preview temporal;
+3. promover el commit aprobado moviendo `dev-stable` a ese SHA;
+4. Firebase Hosting publica automáticamente la versión estable;
+5. testers y QA utilizan siempre la URL DEV estable.
+
+La rama `dev-stable` no implica producción: continúa usando `ccnsa-web-dev`, datos de prueba y credenciales DEV.

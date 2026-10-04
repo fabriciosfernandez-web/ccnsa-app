@@ -38,10 +38,17 @@ export interface NotificationPreferences {
 }
 
 export interface NotificationDelivery {
+  id?: string
   notificationId: string
+  socioId?: string
   channel: NotificationChannel
-  status: 'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED'
+  status: 'PENDING' | 'SENT' | 'PARTIAL' | 'FAILED' | 'SKIPPED'
   attemptedAt?: string
+  updatedAt?: string
+  attempted?: number
+  successCount?: number
+  failureCount?: number
+  reason?: string
   providerMessageId?: string
   errorCode?: string
 }

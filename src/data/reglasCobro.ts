@@ -9,6 +9,7 @@ import {
   type Timestamp,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { resolveAuditActor, type AuditActorInput } from './auditActor'
 import {
   createObligacion,
   listSocios,
@@ -160,9 +161,10 @@ export async function listCambiosCategoria(): Promise<CambioCategoria[]> {
 
 export async function createReglaCobroEspecial(
   input: Omit<ReglaCobroEspecial, 'id' | 'createdAt' | 'updatedAt'>,
-  actorUid: string,
+  actor: AuditActorInput,
 ) {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const ruleRef = doc(collection(database, 'reglas_cobro'))
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
@@ -174,7 +176,7 @@ export async function createReglaCobroEspecial(
     updatedAt: serverTimestamp(),
   })
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'REGLA_COBRO_CREATED',
     entity: 'reglas_cobro',
     entityId: ruleRef.id,
@@ -187,14 +189,15 @@ export async function createReglaCobroEspecial(
   return ruleRef.id
 }
 
-export async function setReglaCobroActiva(id: string, activa: boolean, actorUid: string) {
+export async function setReglaCobroActiva(id: string, activa: boolean, actor: AuditActorInput) {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const ruleRef = doc(database, 'reglas_cobro', id)
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
   batch.update(ruleRef, { activa, updatedAt: serverTimestamp() })
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: activa ? 'REGLA_COBRO_ACTIVATED' : 'REGLA_COBRO_DEACTIVATED',
     entity: 'reglas_cobro',
     entityId: id,
@@ -205,9 +208,10 @@ export async function setReglaCobroActiva(id: string, activa: boolean, actorUid:
 
 export async function createExcepcionCobro(
   input: Omit<ExcepcionCobro, 'id' | 'createdAt' | 'updatedAt'>,
-  actorUid: string,
+  actor: AuditActorInput,
 ) {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const exceptionRef = doc(collection(database, 'excepciones_cobro'))
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
@@ -219,7 +223,7 @@ export async function createExcepcionCobro(
     updatedAt: serverTimestamp(),
   })
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'EXCEPCION_COBRO_CREATED',
     entity: 'excepciones_cobro',
     entityId: exceptionRef.id,
@@ -232,14 +236,15 @@ export async function createExcepcionCobro(
   return exceptionRef.id
 }
 
-export async function setExcepcionCobroActiva(id: string, activa: boolean, actorUid: string) {
+export async function setExcepcionCobroActiva(id: string, activa: boolean, actor: AuditActorInput) {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const exceptionRef = doc(database, 'excepciones_cobro', id)
   const auditRef = doc(collection(database, 'audit_log'))
   const batch = writeBatch(database)
   batch.update(exceptionRef, { activa, updatedAt: serverTimestamp() })
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: activa ? 'EXCEPCION_COBRO_ACTIVATED' : 'EXCEPCION_COBRO_DEACTIVATED',
     entity: 'excepciones_cobro',
     entityId: id,
@@ -287,10 +292,12 @@ export async function cambiarCategoriaSocio(
   socio: Socio,
   categoriaNueva: SocioCategoria,
   vigenteDesde: string,
-  actorUid: string,
+  actor: AuditActorInput,
 ) {
   if (socio.categoria === categoriaNueva) throw new Error('El socio ya pertenece a esa categoría.')
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
+  const actorUid = actorSnapshot.actorUid
   const socioRef = doc(database, 'socios', socio.id)
   const historyRef = doc(collection(database, 'categoria_historial'))
   const auditRef = doc(collection(database, 'audit_log'))
@@ -306,7 +313,7 @@ export async function cambiarCategoriaSocio(
     createdAt: serverTimestamp(),
   })
   batch.set(auditRef, {
-    actorUid,
+    ...actorSnapshot,
     action: 'SOCIO_CATEGORY_CHANGED',
     entity: 'socios',
     entityId: socio.id,
@@ -333,8 +340,9 @@ function fechaAnual(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, '0')}-${String(Math.min(day, last)).padStart(2, '0')}`
 }
 
-export async function generarCargosAnuales(year: number, actorUid: string): Promise<GeneracionEspecialResult> {
+export async function generarCargosAnuales(year: number, actor: AuditActorInput): Promise<GeneracionEspecialResult> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const periodoBase = `${year}-01`
   const periodoObligacion = `${year}-ANUAL`
   const [socios, reglas, excepciones, cambios, existingSnapshot] = await Promise.all([
@@ -381,7 +389,7 @@ export async function generarCargosAnuales(year: number, actorUid: string): Prom
         reglaCobroId: regla.id,
         excepcionId: applied.excepcion?.id ?? null,
         origen: 'REGLA_ANUAL',
-      } as unknown as Parameters<typeof createObligacion>[0], actorUid)
+      } as unknown as Parameters<typeof createObligacion>[0], actorSnapshot)
       existentes.add(key)
       creadas += 1
       if (applied.estado === 'EXENTA') exentas += 1
@@ -393,8 +401,9 @@ export async function generarCargosAnuales(year: number, actorUid: string): Prom
   return { creadas, omitidas, exentas, totalGenerado, creditoAplicado }
 }
 
-export async function generarAporteIngreso(socio: Socio, actorUid: string): Promise<GeneracionEspecialResult> {
+export async function generarAporteIngreso(socio: Socio, actor: AuditActorInput): Promise<GeneracionEspecialResult> {
   const database = requireDb()
+  const actorSnapshot = await resolveAuditActor(actor)
   const fechaIngreso = socio.fechaIngreso || new Date().toISOString().slice(0, 10)
   const periodo = fechaIngreso.slice(0, 7)
   const [reglas, excepciones, cambios, existingSnapshot] = await Promise.all([
@@ -439,7 +448,7 @@ export async function generarAporteIngreso(socio: Socio, actorUid: string): Prom
       reglaCobroId: regla.id,
       excepcionId: applied.excepcion?.id ?? null,
       origen: 'REGLA_INGRESO',
-    } as unknown as Parameters<typeof createObligacion>[0], actorUid)
+    } as unknown as Parameters<typeof createObligacion>[0], actorSnapshot)
     existentes.add(key)
     creadas += 1
     if (applied.estado === 'EXENTA') exentas += 1

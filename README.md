@@ -12,9 +12,10 @@ El proyecto se encuentra en desarrollo sobre Firebase DEV. La planilla `Lista de
 - Tarifas, generación y reglas especiales de cobro.
 - Finanzas: ingresos, egresos, balance y exportación.
 - Actividades con subcontabilidad vinculada al libro financiero.
-- Auditoría centralizada.
+- Auditoría centralizada y exportable.
+- Snapshot manual JSON de las colecciones operativas principales para control/contingencia en DEV (no reemplaza PITR ni backups administrados).
 - Portal del socio y estado de cuenta PDF institucional.
-- Notificaciones in-app persistidas en Firestore para pagos y nuevas obligaciones.
+- Notificaciones in-app persistidas en Firestore y Web Push DEV para pagos, nuevas obligaciones y avisos autorizados.
 - Herramientas de preflight y migración 2026, todavía sin ejecución productiva.
 
 ## Estructura organizacional y permisos
@@ -35,7 +36,8 @@ El centro `/socio/notificaciones` ya utiliza Firestore:
 - un pago registrado por personal autorizado puede generar `PAYMENT_POSTED`;
 - una nueva obligación vigente puede generar `OBLIGATION_POSTED`;
 - el socio puede marcar sus avisos como leídos y guardar preferencias;
-- correo y push permanecen deshabilitados hasta contar con un backend/proveedor confiable;
+- Web Push utiliza Firebase Cloud Messaging con dispositivos registrados por el socio y entrega mediante backend autenticado;
+- correo electrónico permanece pendiente;
 - recordatorios periódicos y estados de cuenta programados requieren scheduler/backend y no se simulan en el cliente.
 
 Ver `docs/notifications.md` para el diseño completo.

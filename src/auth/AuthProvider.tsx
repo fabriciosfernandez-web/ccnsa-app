@@ -16,8 +16,17 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, firebaseConfigured } from '../lib/firebase'
+import { recordAuthAuditEvent } from '../data/authAudit'
 
 export type UserRole = 'SOCIO' | 'TESORERIA' | 'ADMIN' | 'CONSULTA'
+
+export const LOGIN_NOTIFICATION_PROMPT_KEY = 'ccnsa:show-login-notifications'
+
+function setLoginNotificationPromptPending(pending: boolean) {
+  if (typeof window === 'undefined') return
+  if (pending) window.sessionStorage.setItem(LOGIN_NOTIFICATION_PROMPT_KEY, 'pending')
+  else window.sessionStorage.removeItem(LOGIN_NOTIFICATION_PROMPT_KEY)
+}
 
 export interface UserProfile {
   uid: string
@@ -82,7 +91,7 @@ async function loadProfile(user: User): Promise<UserProfile | null> {
     role: data.role as UserRole,
     socioId: data.socioId ? String(data.socioId) : undefined,
     comites: comites.length > 0 ? comites : undefined,
-    active: data.active !== false,
+    active: data.active === true,
   }
 }
 
@@ -133,18 +142,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth) {
       throw new Error('Firebase todavía no está configurado para este entorno.')
     }
-    await signInWithEmailAndPassword(auth, email, password)
+    setLoginNotificationPromptPending(true)
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+    } catch (caught) {
+      setLoginNotificationPromptPending(false)
+      throw caught
+    }
+    try {
+      await recordAuthAuditEvent('LOGIN_SUCCESS')
+    } catch {
+      // El acceso no debe fallar si la auditoría temporalmente no está disponible.
+    }
   }
 
   async function loginWithGoogle() {
     if (!auth) {
       throw new Error('Firebase todavía no está configurado para este entorno.')
     }
-    await signInWithPopup(auth, googleProvider)
+    setLoginNotificationPromptPending(true)
+    try {
+      await signInWithPopup(auth, googleProvider)
+    } catch (caught) {
+      setLoginNotificationPromptPending(false)
+      throw caught
+    }
+    try {
+      await recordAuthAuditEvent('LOGIN_SUCCESS')
+    } catch {
+      // El acceso no debe fallar si la auditoría temporalmente no está disponible.
+    }
   }
 
   async function logout() {
-    if (auth) await signOut(auth)
+    if (!auth) return
+    setLoginNotificationPromptPending(false)
+    try {
+      await recordAuthAuditEvent('LOGOUT')
+    } catch {
+      // El cierre de sesión debe continuar aunque no pueda escribirse la auditoría.
+    }
+    await signOut(auth)
   }
 
   const value = useMemo<AuthContextValue>(

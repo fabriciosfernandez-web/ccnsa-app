@@ -1,4 +1,4 @@
-# ADR-007 — Recepción electrónica de normativa con firma manuscrita y validación reforzada
+# ADR-007 — Recepción y aceptación electrónica de normativa con validación reforzada
 
 **Estado:** adoptada como decisión de arquitectura; pendiente de implementación y pruebas.  
 **Ámbito:** Centro Cultural Nuestra Señora de la Asunción (CCNSA).  
@@ -11,15 +11,15 @@ Incorporar a la aplicación React/Firebase del CCNSA un módulo **Normativa inst
 
 1. Acceso por cuenta personal activa vinculada a un `socioId` institucional.
 2. Presentación de un PDF **publicado e inmutable por versión**, con título, versión, fecha y hash SHA-256 calculado sobre los bytes reales.
-3. Declaración expresa y específica de **acuse de recibo** (no equiparar automáticamente recepción con consentimiento, aprobación o lectura efectivamente realizada).
+3. Declaración expresa y específica, configurable por documento, de **acuse de recibo** o **aceptación de condiciones**. Nunca inferir lectura efectiva. Conservar el texto literal mostrado al usuario.
 4. **Verificación adicional** mediante código de un solo uso (OTP) enviado a un canal previamente verificado, con desafío de corta duración y límites de intentos y reenvíos.
-5. Firma manuscrita dibujada con mouse o pantalla táctil, vinculada al expediente del acuse.
+5. Confirmación mediante el botón inequívoco **«Acepto las condiciones»** (o «Confirmo recepción», según la finalidad) después de autenticar y verificar la operación. **No se requiere firma manuscrita dibujada**.
 6. Registro de la operación **exclusivamente desde un backend confiable** que compruebe identidad, OTP, documento y unicidad en una transacción.
-7. Generación de constancia PDF individual, con firma visible, datos de identificación mínimos, declaración exacta, fecha/hora de servidor, identificador, versión y hashes.
+7. Generación de constancia PDF individual, con leyenda **«Confirmado electrónicamente por [nombre]»** o **«Firmado electrónicamente por [nombre]»**, datos de identificación mínimos, declaración exacta, fecha/hora del servidor, identificador, versión y hashes. El texto no debe confundirse con un certificado digital o una firma electrónica cualificada.
 8. Bitácora de auditoría, panel de pendientes, descarga segura de constancias y exportaciones para Secretaría/Consejo.
 9. Conservación de cada versión y su acuse histórico, incluso cuando se publique una versión posterior.
 
-**No equivale** a una firma electrónica cualificada bajo legislación paraguaya; no debe llamarse firma digital certificada ni prometer no repudio absoluto. La firma dibujada es evidencia complementaria, no un control criptográfico autónomo.
+**No equivale** a una firma electrónica cualificada bajo legislación paraguaya; no debe llamarse firma digital certificada ni prometer no repudio absoluto. La manifestación mediante botón no es por sí sola una prueba criptográfica de autoría: la evidencia reside en los controles de autenticación, confirmación, integridad y auditoría.
 
 ## 2. Modelo propuesto de datos
 
@@ -45,14 +45,14 @@ Documento **versionado**. `normativaId` único por documento y versión; por eje
 ### `normativa_acuses/{normativaId}__{uid}` (escritura exclusiva del servidor)
 
 - `uid`, `socioId`, `normativaId`, `documentoSha256`, `version`, `declaracion`.
-- `verifiedChannel`, `verifiedAt`, `signedAt` (tiempo de servidor), `signaturePath`, `constanciaPath`, `constanciaSha256`.
+- `verifiedChannel`, `verifiedAt`, `confirmedAt` (tiempo de servidor), `confirmationAction`, `constanciaPath`, `constanciaSha256`.
 - `evidenceId` aleatorio (además de clave de unicidad), `evidenceFormatVersion`, `status`: `CONFIRMADA | PENDIENTE_REPARACION`.
 - No almacenar PIN, OTP, contraseña ni tokens de acceso. No almacenar datos adicionales como IP completa salvo base jurídica, necesidad y política de conservación definidas.
 - No permitir actualizaciones o borrados ordinarios; si hay corrección excepcional, registrar un **evento compensatorio** separado sin reescribir el acuse original.
 
 ### `normativa_audit/{eventId}` (escritura exclusiva del servidor)
 
-Eventos: publicación, envío de desafío (sin OTP), OTP validado o rechazado, firma confirmada, descarga administrativa, cambio de estado excepcional. Incluye actor, documento/versión, identificador de evidencia y fecha de servidor.
+Eventos: publicación, envío de desafío (sin OTP), OTP validado o rechazado, aceptación confirmada, descarga administrativa, cambio de estado excepcional. Incluye actor, documento/versión, identificador de evidencia y fecha de servidor.
 
 ## 3. Diseño de autorización y seguridad
 
@@ -72,9 +72,9 @@ Eventos: publicación, envío de desafío (sin OTP), OTP validado o rechazado, f
 1. Ingresa → «Normativa institucional».
 2. Abre/descarga versión publicada. No inferir que *leyó* solamente porque abrió el PDF.
 3. Marca «Acuso recibo», cuya declaración exacta se muestra completa.
-4. Dibuja firma (opción «Limpiar»); la firma no se reutiliza sin autorización.
-5. Solicita código al canal verificado; introduce OTP.
-6. Confirma → la función verifica y registra. **Nunca** mostrar «Firmado» antes del acuse positivo del backend.
+4. Marca la declaración y pulsa «Acepto las condiciones» (o «Confirmo recepción», según el documento); el sistema inicia desafío OTP asociado a usuario, versión y acción concreta.
+5. Solicita código al canal verificado; introduce OTP para confirmar esa operación (no basta un OTP que valide solo un inicio de sesión previo).
+6. Confirma → la función verifica y registra. **Nunca** mostrar «Firmado» o «Aceptado» antes de recibir confirmación del backend.
 7. Descarga la constancia y puede revisar historial por documento y versión.
 
 **Administrador/Secretaría:** carga borrador, verifica archivo y hash, publica versión sin posibilidad de sobreescribirla, supervisa pendientes y confirmados, exporta matriz, consulta evidencias conforme a roles.
@@ -83,7 +83,7 @@ Eventos: publicación, envío de desafío (sin OTP), OTP validado o rechazado, f
 
 ## 5. Constancia PDF
 
-Encabezado CCNSA; identificación de socio; título/código/versión; hash SHA-256 completo del PDF normativo; declaración literal; fecha/hora de servidor con zona `America/Asuncion`; firma dibujada; método de verificación adicional; identificador de evidencia y hash de la constancia registrado fuera del archivo.
+Encabezado CCNSA; identificación de socio; título/código/versión; hash SHA-256 completo del PDF normativo; **declaración literal aceptada**; leyenda «Aceptado/confirmado electrónicamente por [nombre]»; fecha/hora del servidor con zona `America/Asuncion`; método de verificación OTP (sin revelar el código), identificador de evidencia y hash de la constancia registrado fuera del archivo. Todo dato debe provenir del registro confirmado en backend y jamás de campos libres del navegador.
 
 **Evitar dependencia circular:** el hash de la constancia no debe imprimirse dentro del PDF que se está calculando. Conservarlo en el registro de evidencia, exportable junto con el PDF.
 
@@ -91,21 +91,21 @@ La constancia no es certificado cualificado ni acreditación de lectura efectiva
 
 ## 6. Implementación y condiciones de salida
 
-**Etapa A — base (desarrollo):** páginas de consulta/publicación, documento versionado, reglas de lectura, lienzo de firma accesible, configuración de backend; sin activación de firma real.
+**Etapa A — base (desarrollo):** páginas de consulta/publicación, documento versionado, reglas de lectura, declaración y botón de aceptación, configuración de backend; sin activación de aceptación real.
 
-**Etapa B — validación segura:** elegir y configurar envío OTP (correo institucional mediante servicio autorizado o TOTP de Identity Platform si se aprueba su activación). El canal debe estar previamente verificado; enviar OTP a la misma cuenta utilizada para iniciar sesión no equivale necesariamente a MFA independiente. Implementar funciones, reglas y tests.
+**Etapa B — validación segura:** elegir y configurar envío OTP por correo mediante servicio autorizado y backend propio, o TOTP de Identity Platform si se aprueba su activación. El canal debe estar previamente verificado; enviar un OTP a la misma casilla utilizada para iniciar sesión no equivale necesariamente a MFA independiente. El MFA nativo de Firebase requiere Identity Platform; OTP por correo es una implementación personalizada. Implementar funciones, reglas, secretos y tests.
 
 **Etapa C — evidencia:** constancia PDF de servidor, Storage privado, audit trail, idempotencia, exportación de hashes, backups y reportes de cumplimiento.
 
 **Etapa D — piloto:** cuentas ficticias → grupo reducido de socios con consentimiento → pruebas de restauración, controles de acceso y costo → decisión explícita de publicación.
 
 **Criterios de aceptación obligatorios:**
-- No se puede firmar sin identidad válida y prueba adicional verificable.
-- Un socio no puede firmar por otro ni alterar campos de identidad o hash.
+- No se puede aceptar sin identidad válida, declaración inequívoca y prueba adicional verificable.
+- Un socio no puede confirmar por otro ni alterar campos de identidad o hash.
 - No se puede cambiar el contenido de un PDF ya publicado conservando la misma versión.
 - Reintentos/concurrencia no generan constancias duplicadas.
 - El acuse y el PDF se recuperan consistentemente; fallas intermedias tienen reparación controlada.
-- Un socio no puede ver la firma de otro.
+- Un socio no puede ver las constancias de otro.
 - Un administrador ordinario no puede borrar silenciosamente evidencia sin controles independientes.
 - Los estados se calculan respecto de la **versión concreta**.
 - Pruebas de Firebase Emulator/Storage/Functions y revisión de protección de datos superadas.
@@ -119,3 +119,28 @@ No se compra servicio comercial de firma, pero **costo cero no está garantizado
 ## 8. Alcance de esta decisión
 
 Este archivo constituye una **decisión funcional y técnica**. No despliega Cloud Functions ni crea constancias reales, y no modifica el módulo financiero ni el servicio de notificaciones actual. No habilitar firmas en producción por un simple cambio de interfaz o formulario sin los controles previos.
+
+
+## 9. Plan de pruebas — OTP y constancia (sin ejecutar)
+
+**Estado de ejecución:** PENDIENTE. El repositorio todavía no contiene servicio de envío/validación OTP, funciones de aceptación ni generador PDF integrado. Una maqueta visual del PDF NO acredita autenticación ni entrega del código.
+
+| Caso | Ejecución requerida | Resultado esperado |
+|---|---|---|
+| OTP-01 | Socio activo, correo verificado, documento publicado, OTP correcto | Aceptación confirmada una sola vez y vinculada a UID/versión |
+| OTP-02 | OTP equivocado | Rechazo, incremento atómico de intentos, sin aceptación |
+| OTP-03 | OTP vencido | Rechazo sin escritura de constancia |
+| OTP-04 | Reutilizar OTP consumido | Rechazo por replay |
+| OTP-05 | Reenvío de código | Invalidar anterior; respetar límite de reenvíos |
+| OTP-06 | Cinco intentos fallidos y sexto intento | Bloqueo según política, con auditoría y sin aceptación |
+| OTP-07 | Intercambiar usuario, sesión o versión documental | Rechazo de desafío no vinculado |
+| OTP-08 | Dos confirmaciones simultáneas o doble clic | Una sola constancia por UID y versión |
+| OTP-09 | Correo no verificado, socio inactivo o usuario sin rol | Rechazo sin emitir desafío |
+| OTP-10 | Falla del proveedor de correo o función | Estado pendiente, error visible, sin aceptación ficticia |
+| PDF-01 | OTP válido y aceptación confirmada | PDF con nombre, identificación, fecha y hora del servidor, declaración exacta, versión y evidencia ID |
+| PDF-02 | PDF normativo sustituido o bytes alterados | Rechazo o exigencia de nueva versión; hash no coincide |
+| PDF-03 | Descargar PDF y contrastar el registro | Hash del PDF coincide con huella almacenada externamente |
+| ACL-01 | Usuario A intenta descargar constancia de B | Acceso denegado |
+| E2E-01 | Prueba con cuenta ficticia y buzón de prueba real | Correo llega, código recibido y aplicado, constancia emitida, auditada y descargable |
+
+**Criterio de salida:** no declarar «OTP probado» sin E2E-01 real y resultados documentados (proveedor, fecha, ID de desafío sin exposición del código, expiración, logs y constancia). Probar en Firebase Emulator no sustituye una prueba con correo entregado a buzón real. No activar aceptación en producción mientras fallen controles de seguridad o trazabilidad.

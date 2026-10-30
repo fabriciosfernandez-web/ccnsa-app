@@ -144,3 +144,33 @@ Este archivo constituye una **decisión funcional y técnica**. No despliega Clo
 | E2E-01 | Prueba con cuenta ficticia y buzón de prueba real | Correo llega, código recibido y aplicado, constancia emitida, auditada y descargable |
 
 **Criterio de salida:** no declarar «OTP probado» sin E2E-01 real y resultados documentados (proveedor, fecha, ID de desafío sin exposición del código, expiración, logs y constancia). Probar en Firebase Emulator no sustituye una prueba con correo entregado a buzón real. No activar aceptación en producción mientras fallen controles de seguridad o trazabilidad.
+
+
+## 10. Decisión operativa — OTP por correo para acelerar el lanzamiento (2026-10-30)
+
+**Prioridad del CCNSA:** facilitar recepción/aceptación de normativa a socios sin exigir que instalen aplicaciones autenticadoras ni exigir SMS. Se adopta como primera versión **login de la app con credenciales individuales + confirmación transaccional mediante OTP al correo verificado**. No denominar este proceso «MFA» ni «2FA certificado»; es una validación adicional del acto. Conforme a NIST SP 800-63B-4, email no satisface el canal de autenticación fuera de banda; OWASP lo caracteriza como débil y dependiente de la seguridad del buzón.
+
+### Flujo mínimo viable obligatorio
+1. Ingresar con la cuenta individual Firebase; el identificador de cuenta (correo o usuario) no cambia la exigencia de una contraseña.
+2. Mostrar el PDF íntegro, **código/versión y texto literal** de la declaración. El PDF debe estar guardado en una ubicación no pública y ligado a hash calculado desde servidor.
+3. El socio elige la declaración adecuada («Confirmo recepción» o «Acepto las condiciones»). El backend valida usuario activo, vinculación UID/socioId, email verificado y documento publicado.
+4. El backend genera código aleatorio, desafío asociado a (uid, documento/versión/hash, declaración), con máximo cinco minutos y cinco intentos, sin persistir OTP en claro; realiza envío de correo con contexto del documento e instrucciones para desconocer la operación.
+5. La aplicación solicita código; backend valida de manera atómica desafío, expiración, intentos, estado de documento y que no exista constancia previa. Nunca crear aceptación directamente desde el navegador.
+6. En la misma operación confirmada registrar timestamp del servidor, UID/socioId, declaración, versión, hash, desafío consumido e ID de evento. Generar PDF de constancia en servicio de confianza con leyenda «Confirmado electrónicamente por [nombre]», y permitir descarga. Fallas de creación de PDF quedan en estado de reparación controlada, sin volver a solicitar firma ni inventar estado exitoso.
+7. Secretaría ve por versión pendientes/aceptados; la cuenta de socio ve **solo** sus constancias.
+
+### Controles de riesgo y alcance
+- Verificar **propiedad y exactitud del correo del socio**, y registrar por procedimiento controlado cualquier cambio. No basta copiar un correo arbitrario del perfil.
+- Las cuentas de correo pueden compartir contraseña con CCNSA, estar abiertas en el mismo dispositivo o habilitar restablecer la contraseña de acceso. Por eso el correo OTP mejora la evidencia del acto pero **no demuestra un factor independiente ni proporciona garantías equivalentes a MFA fuerte o firma electrónica cualificada**.
+- El código identifica la operación concreta: nombre de normativa, versión, hash y tipo de declaración. El envío por correo NO debe ser un aviso genérico de login.
+- Exigir sesiones recientes para aceptar; rechazar sesiones obsoletas y cambios de email pendientes.
+- No exponer secretos SMTP o API de correo en React, variables VITE_*, Firestore o commits; utilizar Secret Manager y Cloud Functions.
+- Medidas de abuso: límites de envío y verificación por usuario/IP cuando sea posible, bloqueo temporal, idempotencia, mensaje de error neutro, logs sin OTP, reenvío que invalide el código anterior.
+- Para documentos que requieran mayores garantías jurídicas, admitir un proceso diferenciado con firma electrónica cualificada.
+- Priorizar **primera prueba end-to-end real** con cuenta ficticia y buzón verificado; posteriormente piloto reducido, sin activar firma en producción antes de superar todas las pruebas críticas de auditoría y seguridad.
+
+### Dependencias externas pendientes de configuración
+- Proveedor de envío de correo transaccional autorizado, dominio o remitente verificado, credenciales guardadas como secreto y recepción comprobada.
+- Backend Firebase Functions, Firestore/Storage privados, permiso de despliegue y revisión de consumo/costo.
+- Validación de correo y relación UID/socioId; política institucional para publicación y conservación de normativas.
+- Pruebas de entrega real, fallos, caducidad, doble confirmación y prueba PDF/backup.

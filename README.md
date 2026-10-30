@@ -1,5 +1,9 @@
 # CCNSA App
 
+## Recepción electrónica de normativa
+
+Se adoptó el modelo de **acuse o aceptación expresa mediante botón autenticado, código OTP para la operación, constancia PDF con nombre y fecha/hora del servidor, y auditoría**. No requiere dibujar firma manuscrita. La especificación y sus condiciones de seguridad están en [docs/normativa-recepcion-firma.md](docs/normativa-recepcion-firma.md). La función de firma **no está habilitada** hasta implementar y verificar el backend, el canal OTP y las políticas de evidencias; esta decisión no constituye un despliegue productivo.
+
 Sistema web de gestión de socios, cuotas, pagos, finanzas y actividades del CCNSA.
 
 ## Estado del proyecto
